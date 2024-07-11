@@ -26,7 +26,7 @@ property_color (wp_color, _("Color"), "white")
     description (_("The color that represents the whitepoint"))
 //    ui_meta     ("role", "color-primary")
 
-// property_double (image_width, _("Image Width"), 5196)
+//  property_double (image_width, _("Image Width"), 5196)
 //    description (_("horizontal width of image in pixels / better chose min (width, height)"))
 //    value_range (1.0, 10000) /* arbitrarily large number */
 //    ui_range(300, 8000) /* for the slider in the user interface */
