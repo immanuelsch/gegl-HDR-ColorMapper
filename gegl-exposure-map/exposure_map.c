@@ -26,11 +26,6 @@ property_color (wp_color, _("Color"), "white")
     description (_("The color that represents the whitepoint"))
 //    ui_meta     ("role", "color-primary")
 
-//    property_double (viewing_angle, _("Horizontal Viewing angle in degree"), 360.0)
-//    description (_("Viewing Angle of the image in degree horizontal. Image section of 360 degree"))
-//    value_range (1.0, 360 ) /* arbitrarily large number */
-//    ui_range(5.0, 180.0) /* for the slider in the user interface */
-
 // property_double (image_width, _("Image Width"), 5196)
 //    description (_("horizontal width of image in pixels / better chose min (width, height)"))
 //    value_range (1.0, 10000) /* arbitrarily large number */
