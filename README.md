@@ -4,7 +4,7 @@ Chromaticity mapping algorithm for range compression or contrast adjustment.
 I'm the reporter of https://gitlab.gnome.org/GNOME/gegl/-/issues/171 that ended up in a native blending-based saturation approach.
 And I also published some code that lead Gimp to implement the Lightness Blend mode https://bugzilla.gnome.org/show_bug.cgi?id=753163.
 
-*To make things clear: I'm not a programmer - so my code looks ugly :-) - but serves as PoC.*
+*To make things clear: I'm not a native programmer - so my code looks ugly :-) - it should only serve as PoC.*
 
 # Motivation
 A lot of pictures look very desaturated when increasing image contrast. All receipes do not really help in a full extent: They adopt lightness/luminance and -contrast but to not map color correct from a color-intensity perspective.
@@ -46,12 +46,12 @@ I started and failed with the initial idea, that reducing contras to "0" will re
 
 The idea is super for desaturating highlight or shadows in s-shaped contrast curves (like RGB filmic in Darktable does). But there was no way to realize luminance-constant coloured surfaces.
 
-Thus I modified gegl:image-gradient that is used by the core gegl mapper:
+Thus I modified gegl:image-gradient that is used by the core of gegl HDR colormapper:
 
 1) operate in linear light to stay in scene referred workflow as long as possible.
-2) divide gradient by luminance (this avoids chroma adoptions in case of gegl:exposure, which changes image gradient bit not relative image gradient)
-3) represent image gradient ("delta") as "density". Hypotenuse divided by Ankatete instead of delta (Gegenkathete) --> secant of gradient
+2) divide gradient by luminance (to make gradient independent from gegl:exposure. Global exposure changes image gradient but relative image gradient stays constant.)
+3) represent image gradient ("delta") as a angle of gradient ("slope"). --> so the secant of gradient-angle represents something like "density" of image (projection of high contrasts to luminance-constant image represent high density ">> 1.0" and low contrasts are already luminance-constant with density "1.0")
 
-So a completely flattened image still has colour -:)
+So the chroma of a completely flattened image (luminance-constant) doesn't drop to zero, but gets only reduced according to density of "1.0" :-)
 
 **This page is WIP!**
