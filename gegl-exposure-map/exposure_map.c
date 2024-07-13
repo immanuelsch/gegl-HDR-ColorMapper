@@ -26,11 +26,6 @@ property_color (wp_color, _("Color"), "white")
     description (_("The color that represents the whitepoint"))
 //    ui_meta     ("role", "color-primary")
 
-//  property_double (image_width, _("Image Width"), 5196)
-//    description (_("horizontal width of image in pixels / better chose min (width, height)"))
-//    value_range (1.0, 10000) /* arbitrarily large number */
-//    ui_range(300, 8000) /* for the slider in the user interface */
-
 property_double (chroma_scale_gamma, _("scale chroma adoption"), 0.4545)
     description (_("Scales the Chroma effect of this plugin. Empiric best fit is 0.454 (c2g) - 1.0"))
     value_range (0.1, 3.0) /* arbitrarily large number */
