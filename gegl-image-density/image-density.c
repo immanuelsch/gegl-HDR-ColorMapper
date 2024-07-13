@@ -152,11 +152,14 @@ process (GeglOperation       *operation,
           gfloat dy;
           gfloat magnitude;
           gfloat yAvg;
+          gfloat delta_rel_sqr;
 
           dx = (mid_ptr[(x-1)] - mid_ptr[(x+1)]);
           dy = (top_ptr[x] - down_ptr[x]);
           yAvg = (mid_ptr[(x-1)] + mid_ptr[(x+1)] + top_ptr[x] + down_ptr[x]) / 4;
-          magnitude = sqrtf ( ((POW2(dx) + POW2(dy)) / 4.0 / POW2 ( fmax (yAvg, 0.00001f)) * max_dimension) + 1.0 );
+//          magnitude = sqrtf ( ((POW2(dx) + POW2(dy)) / 4.0 / POW2 ( fmax (yAvg, 0.00001f)) * max_dimension) + 1.0 );
+          delta_rel_sqr = 0.25 * (POW2(dx) + POW2(dy)) / POW2(fmax (yAvg, 0.0000001f));
+          magnitude = sqrtf (1.0 + (delta_rel_sqr * POW2(max_dimension)));
 
           row4[(x-1)] = magnitude;
         }
