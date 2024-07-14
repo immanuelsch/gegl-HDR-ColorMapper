@@ -15,6 +15,7 @@
  *
  * Copyright 2006 Øyvind Kolås <pippin@gimp.org>
  *           2022 Liam Quin <slave@fromoldbooks.org>
+ *           2024 Immanuel Schaffer
  */
 
 #include "config.h"
@@ -122,14 +123,6 @@ process (GeglOperation       *operation,
   out_rect.width  = roi->width;
   out_rect.height = 1;
 
-//  pixels_360 = (360.0 / o->viewing_angle) * boundary.width;
-//  pixels_360 = (360.0 / o->viewing_angle) * roi->width;
-//  pixels_360 = (360.0 / o->viewing_angle) * 5196.0;
-//  pixels_360 = o->image_width;
-//  pixels_360 = 5196;
-//  pixels_360 = gegl_operation_source_get_bounding_box (operation, "input")->width;
-//  printf("x: %6.0f; y: %6.0f; ", (float) get_bounding_box (operation).width, (float) get_bounding_box (operation).height);
-//  printf("max_dimension: %6.0f\n", max_dimension);
 
   gegl_buffer_get (input, &row_rect, 1.0, in_format, top_ptr,
                    GEGL_AUTO_ROWSTRIDE, GEGL_ABYSS_CLAMP);
@@ -157,6 +150,9 @@ process (GeglOperation       *operation,
           dx = (mid_ptr[(x-1)] - mid_ptr[(x+1)]);
           dy = (top_ptr[x] - down_ptr[x]);
           recip_avgY = 4.0 / (mid_ptr[(x-1)] + mid_ptr[(x+1)] + top_ptr[x] + down_ptr[x]);
+          /*
+           * FIXME: div_by_zero handling
+           */
 //          magnitude = sqrtf ( ((POW2(dx) + POW2(dy)) / 4.0 / POW2 ( fmax (yAvg, 0.00001f)) * max_dimension) + 1.0 );
           delta_rel_sqr = 0.25 * (POW2(dx) + POW2(dy)) * POW2(recip_avgY);
           magnitude = sqrtf (1.0 + (delta_rel_sqr * POW2(max_dimension)));
@@ -199,7 +195,7 @@ gegl_op_class_init (GeglOpClass *klass)
     "name",        "immanuel:image-density",
     "title",       _("Image Density"),
     "categories",  "HDR",
-    "description", _("project density to flatmap"
+    "description", _("expresses contrast as compression ratio"
                      "image compression compared to flatmap"),
     NULL);
 }

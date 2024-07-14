@@ -23,51 +23,63 @@
 
 #ifdef GEGL_PROPERTIES
 
+/* define gegl properties
+ * for scaling the chroma scaling effect of this plugin
+ */
+property_double (chroma_scale_gamma, _("strength"), 0.4545)
+    description (_("Scales chroma-adoption effect of plugin. Usually ranges between 0.454 (c2g) - 1.0"))
+    value_range (0.1, 3.0) /* arbitrarily large number */
+    ui_range(0.1, 1.0) /* for the slider in the user interface */
+
+/* define gegl properties
+ * for whitepoint in case the algo runs on non-whitebalanced images.
+ * Select the color that normally represents white / neutral gray
+ */
+property_color (wp_color, _("neutral / white representation"), "white")
+    description (_("Chose a color that represents white or neutral gray."))
+//    ui_meta     ("role", "color-primary")
+    
+/* define gegl properties
+ * for noise-reduction of luminance channels of source and target
+ */
 enum_start (gegl_denoise_source_target)
    enum_value (GEGL_DENOISE_SOURCE_TARGET_SELECTIVEGAUSSIAN, "selective gaussian", N_("Gaussian selective"))
    enum_value (GEGL_DENOISE_SOURCE_TARGET_NONE, "none", N_("None"))
 enum_end (GeglDenoiseSourceTarget)
 
-property_enum (denoise_source_target_mode, _("Denoise Source and Target Luminance Channel"),
+property_enum (denoise_source_target_mode, _("Denoise Luminance Channels"),
                GeglDenoiseSourceTarget, gegl_denoise_source_target,
                GEGL_DENOISE_SOURCE_TARGET_NONE)
-  description (_("Denoise Source and Target Luminance Channel"))
+  description (_("Denoising of the luminance channel of source and target image"))
 
+property_int (denoise_radius, _("denoise radius"), 3)
+    description (_("radius of selective gaussian blur operation on luminance channel of source and target"))
+    value_range (1, 100) /* arbitrarily large number */
+    ui_range(1, 10) /* for the slider in the user interface */
+
+property_double (max_dev, _("only blur below this noise"), 0.01)
+    description (_("max deviaton of selective gaussian blur operation on luminance channel of source and target"))
+    value_range (0.0, 100.0) /* arbitrarily large number */
+    ui_range(0.0, 1.0) /* for the slider in the user interface */
+    ui_gamma (3.0)
+  
+/* define gegl properties
+ * for noise-reduction on the factor, that finally scales chroma
+ */
 enum_start (gegl_denoise_chroma_scaling_factor)
    enum_value (GEGL_DENOISE_CHROMA_SCALING_FACTOR_MEDIAN, "median", N_("Median"))
    enum_value (GEGL_DENOISE_CHROMA_SCALING_FACTOR_NONE, "none", N_("None"))
 enum_end (GeglDenoiseChromaScalingFactor)
 
-property_enum (denoise_chroma_scaling_factor, _("Denoise the Chroma Scaling Factor"),
+property_enum (denoise_chroma_scaling_factor, _("Denoise Scaling Factor"),
                GeglDenoiseChromaScalingFactor, gegl_denoise_chroma_scaling_factor,
                GEGL_DENOISE_CHROMA_SCALING_FACTOR_NONE)
-  description (_("Denoises the Chroma Scaling Factor"))
+  description (_("Denoises the factor that finally scales chromaticity"))
 
-
-property_color (wp_color, _("Color"), "white")
-    description (_("The color that represents the whitepoint"))
-//    ui_meta     ("role", "color-primary")
-
-property_double (chroma_scale_gamma, _("scale chroma adoption"), 0.4545)
-    description (_("Scales the Chroma effect of this plugin. Empiric best fit is 0.454 (c2g) - 1.0"))
-    value_range (0.1, 3.0) /* arbitrarily large number */
-    ui_range(0.1, 1.0) /* for the slider in the user interface */
-
-property_double (denoise_radius_contrastfactor, _("denoise radius contrast factor"), 1.5)
-    description (_("radius of median-denoising operation on contrast scaling factor"))
+property_double (denoise_radius_contrastfactor, _("denoise radius chroma scaling"), 1.5)
+    description (_("radius for median-denoising operation that is applied to the factor that scales the saturation"))
     value_range (0.1, 100.0) /* arbitrarily large number */
     ui_range(0.1, 10.0) /* for the slider in the user interface */
-    ui_gamma (3.0)
-
-property_int (denoise_radius, _("denoise radius luminance"), 3)
-    description (_("radius of selective gaussian blur operation on grayscale images"))
-    value_range (1, 100) /* arbitrarily large number */
-    ui_range(1, 10) /* for the slider in the user interface */
-
-property_double (max_dev, _("maximum deviation selective blurring"), 0.01f)
-    description (_("max deviaton of selective gaussian blur operation on grayscale images"))
-    value_range (0.0f, 100.0f) /* arbitrarily large number */
-    ui_range(0.0f, 1.0f) /* for the slider in the user interface */
     ui_gamma (3.0)
 
 #else
@@ -214,21 +226,9 @@ static void attach(GeglOperation *operation)
   
   gegl_node_link_many (old_wb, new_unc, color_new, color_new_comp, new_comp, final, output, NULL);
 
-      // debug_output
-/*
-  cDebug = gegl_node_new_child (gegl, "operation", "immanuel:image-density", NULL);
-  yDebug = gegl_node_new_child (gegl, "operation", "gegl:saturation", "scale", 0.0, "colorspace", "Native", NULL);
-  gegl_node_link_many (old_wb, cDebug, output, NULL);
-//this works with old but not with old_wb
-*/
 
-  /* arrange to pass on our two properties to their respective nodes */
-
-// gegl_operation_meta_redirect (operation, "viewing_angle", cNew, "viewing_angle");
-// gegl_operation_meta_redirect (operation, "viewing_angle", cOld, "viewing_angle");
-
-// gegl_operation_meta_redirect (operation, "image_width", cNew, "image_width");
-// gegl_operation_meta_redirect (operation, "image_width", cOld, "image_width");
+// meta redirects
+  
 gegl_operation_meta_redirect (operation, "wp_color", wp, "value");
 gegl_operation_meta_redirect (operation, "chroma_scale_gamma", scale_contrast, "value");
 
@@ -250,10 +250,10 @@ gegl_op_class_init (GeglOpClass *klass)
   operation_class->attach = attach;
 
   gegl_operation_class_set_keys (operation_class,
-    "title",          _("map exposure with chromaticity scaling"),
+    "title",          _("HDR ColorMapper"),
     "name",           "immanuel:exposure_map",
     "categories",     "Artistic",
-    "description",  _("maps exposure according to the luminance of layer. Includes contrast-aware chromaticity scaling"),
+    "description",  _("map colors of colorimetric consistent source image (aux) to the luminance channel of target scaling saturation proportionl with contrast change"),
     NULL);
 
 }

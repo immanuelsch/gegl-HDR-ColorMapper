@@ -15,6 +15,7 @@
  *
  * Copyright 2006 Øyvind Kolås <pippin@gimp.org>
  *           2022 Liam Quin <slave@fromoldbooks.org>
+ *           2024 Immanuel Schaffer
  */
 
 #include "config.h"
@@ -134,6 +135,9 @@ process (GeglOperation       *operation,
           dx = (mid_ptr[(x-1)] - mid_ptr[(x+1)]);
           dy = (top_ptr[x] - down_ptr[x]);
           recip_avgY = 4.0 / (mid_ptr[(x-1)] + mid_ptr[(x+1)] + top_ptr[x] + down_ptr[x]);
+          /*
+           * FIXME: div_by_zero handling
+           */
           magnitude = sqrt (POW2(dx) + POW2(dy)) * recip_avgY * 0.5;
 
           row4[(x-1) * n_components] = magnitude;
@@ -172,9 +176,9 @@ gegl_op_class_init (GeglOpClass *klass)
 
   gegl_operation_class_set_keys (operation_class,
     "name",        "immanuel:image-gradient-rel",
-    "title",       _("Image Gradient relativ"),
+    "title",       _("image gradient relative"),
     "categories",  "edge-detect",
-    "description", _("Compute gradient magnitude and/or direction by "
+    "description", _("Compute gradient magnitude "
                      "central differences relative to its lightness"),
     NULL);
 }
