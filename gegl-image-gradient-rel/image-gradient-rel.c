@@ -129,12 +129,12 @@ process (GeglOperation       *operation,
           gfloat dx;
           gfloat dy;
           gfloat magnitude;
-          gfloat yAvg;
+          gdouble recip_avgY; // reciprocal of averaged luminance
 
           dx = (mid_ptr[(x-1)] - mid_ptr[(x+1)]);
           dy = (top_ptr[x] - down_ptr[x]);
-          yAvg = (mid_ptr[(x-1)] + mid_ptr[(x+1)] + top_ptr[x] + down_ptr[x]) / 4;
-          magnitude = sqrtf(POW2(dx) + POW2(dy)) / yAvg * 0.5;
+          recip_avgY = 4.0 / (mid_ptr[(x-1)] + mid_ptr[(x+1)] + top_ptr[x] + down_ptr[x]);
+          magnitude = sqrt (POW2(dx) + POW2(dy)) * recip_avgY * 0.5;
 
           row4[(x-1) * n_components] = magnitude;
         }
