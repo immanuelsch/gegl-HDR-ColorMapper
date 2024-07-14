@@ -15,12 +15,34 @@
  *
  * Copyright 2006 Øyvind Kolås <pippin@gimp.org>
  *           2022 Liam Quin <slave@fromoldbooks.org>
+ *           2024 Immanuel Schaffer
  */
 
 #include "config.h"
 #include <glib/gi18n-lib.h>
 
 #ifdef GEGL_PROPERTIES
+
+enum_start (gegl_denoise_source_target)
+   enum_value (GEGL_DENOISE_SOURCE_TARGET_SELECTIVEGAUSSIAN, "selective gaussian", N_("Gaussian selective"))
+   enum_value (GEGL_DENOISE_SOURCE_TARGET_NONE, "none", N_("None"))
+enum_end (GeglDenoiseSourceTarget)
+
+property_enum (denoise_source_target_mode, _("Denoise Source and Target Luminance Channel"),
+               GeglDenoiseSourceTarget, gegl_denoise_source_target,
+               GEGL_DENOISE_SOURCE_TARGET_NONE)
+  description (_("Denoise Source and Target Luminance Channel"))
+
+enum_start (gegl_denoise_chroma_scaling_factor)
+   enum_value (GEGL_DENOISE_CHROMA_SCALING_FACTOR_MEDIAN, "median", N_("Median"))
+   enum_value (GEGL_DENOISE_CHROMA_SCALING_FACTOR_NONE, "none", N_("None"))
+enum_end (GeglDenoiseChromaScalingFactor)
+
+property_enum (denoise_chroma_scaling_factor, _("Denoise the Chroma Scaling Factor"),
+               GeglDenoiseChromaScalingFactor, gegl_denoise_chroma_scaling_factor,
+               GEGL_DENOISE_CHROMA_SCALING_FACTOR_NONE)
+  description (_("Denoises the Chroma Scaling Factor"))
+
 
 property_color (wp_color, _("Color"), "white")
     description (_("The color that represents the whitepoint"))
@@ -81,7 +103,7 @@ static void attach(GeglOperation *operation)
 //  GeglNode *cDebug;                            // contrast (image gradient relative to luminance)  
 //  GeglNode *yDebug;                           // contrast (image gradient relative to luminance)  
   
-//  GeglProperties  *o          = GEGL_PROPERTIES (operation);
+  GeglProperties  *o          = GEGL_PROPERTIES (operation);
 
 //  GeglNode *gradient_rel_y0, *gradient_rel_y1, *exposure_blend, *y0, *gradient_ratio, *r_gradient_ratio, *color_plain, *color_boost, *exposure_ratio, *white, *rgbk, *yr, *final, *final2;
 
@@ -110,7 +132,15 @@ static void attach(GeglOperation *operation)
   // make sure new image / current layer is grayscale
   yNew = gegl_node_new_child (gegl, "operation", "gegl:saturation", "scale", 0.0, NULL);
 //  cNew = gegl_node_new_child (gegl, "operation", "immanuel:image-gradient-rel", NULL);
-  yNewDenoise = gegl_node_new_child (gegl, "operation", "gegl:gaussian-blur-selective", NULL);
+  if (o->denoise_source_target_mode == GEGL_DENOISE_SOURCE_TARGET_SELECTIVEGAUSSIAN)
+    {
+      yNewDenoise = gegl_node_new_child (gegl, "operation", "gegl:gaussian-blur-selective", NULL);
+    }
+  else
+    {
+      yNewDenoise = gegl_node_new_child (gegl, "operation", "gegl:nop", NULL);
+    }
+
   cNew = gegl_node_new_child (gegl, "operation", "immanuel:image-density", NULL);
   gegl_node_link_many (yNew_in, yNew, yNewDenoise, cNew, NULL);
 
@@ -121,8 +151,16 @@ static void attach(GeglOperation *operation)
   yOld = gegl_node_new_child (gegl, "operation", "gegl:saturation", "scale", 0.0, NULL);
 //  yOldY = gegl_node_new_child (gegl, "operation", "gegl:convert-format", "format", "Y float", NULL);
 //  cOld = gegl_node_new_child (gegl, "operation", "immanuel:image-gradient-rel", NULL);
-  yOldDenoise = gegl_node_new_child (gegl, "operation", "gegl:gaussian-blur-selective", NULL);
-  cOld = gegl_node_new_child (gegl, "operation", "immanuel:image-density", NULL);  //image dimension ranzig
+  if (o->denoise_source_target_mode == GEGL_DENOISE_SOURCE_TARGET_SELECTIVEGAUSSIAN)
+    {
+      yOldDenoise = gegl_node_new_child (gegl, "operation", "gegl:gaussian-blur-selective", NULL);
+    }
+  else
+    {
+      yOldDenoise = gegl_node_new_child (gegl, "operation", "gegl:nop", NULL);
+    }
+ 
+ cOld = gegl_node_new_child (gegl, "operation", "immanuel:image-density", NULL);  //image dimension ranzig
  gegl_node_link_many (old, yOld, yOldDenoise, cOld, NULL);
 
 /*
@@ -140,7 +178,15 @@ static void attach(GeglOperation *operation)
   scale_contrast_without_gamma = gegl_node_new_child (gegl, "operation", "gegl:divide", NULL);
   scale_contrast = gegl_node_new_child (gegl, "operation", "gegl:gamma", "value", 0.5, NULL);
 //  scale_contrast_raw = gegl_node_new_child (gegl, "operation", "gegl:gaussian-blur", NULL);
-  scale_contrast_raw = gegl_node_new_child (gegl, "operation", "gegl:median-blur", "high-precision", 1, NULL);
+  if (o->denoise_chroma_scaling_factor == GEGL_DENOISE_CHROMA_SCALING_FACTOR_MEDIAN)
+    {
+      scale_contrast_raw = gegl_node_new_child (gegl, "operation", "gegl:median-blur", "high-precision", 1, NULL);
+    }
+  else
+    {
+      scale_contrast_raw = gegl_node_new_child (gegl, "operation", "gegl:nop", NULL);
+    }
+
   gegl_node_connect_from (scale_contrast_without_gamma, "aux", cOld, "output");
 //  gegl_node_link (cNew, scale_contrast);
   gegl_node_link_many (cNew, scale_contrast_without_gamma, scale_contrast_raw, scale_contrast, NULL);
