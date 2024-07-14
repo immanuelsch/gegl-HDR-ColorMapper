@@ -43,20 +43,23 @@ The "aux" input reads the "original" image with a consistent natural color. The 
 ## Weaknesses
 - contrast can sometimes only be "read out" (reverse engineered) from the image (by determining linear image gradient divided by luminance). Preference should always be to directly derive contrast changes. From changes in tone curve, for example by making the Chroma Channel dependent on Luminance based tone curve.
 - the algo is not resilient by nature to image noise, that is indeed some kind of contrast (image gradient). Handling noise is currently done by some experimental smoothening filters.
-- **top challenge currently**: target contrast of "0" leads to banding. Small contrast in source image in combination with zero contrast in regions of target image results in "0.0 div by something-nearly-zero"
+- **top challenge currently**: target contrast of "0" leads to banding / halos especially for algorithms that compress the tone curve locally. Small contrast in source image in combination with zero contrast in regions of target image results in "0.0 div by something-nearly-zero"
 
 
 # Some tech details
-I started and failed with the initial idea, that reducing contras to "0" will result in a luminance-constant image with neutral gray.
+This drawing shows the principle of contrast-dependent chroma-scaling.
+![ColorPhysics](https://github.com/user-attachments/assets/c3e76a7e-337d-450a-9b11-5dd081cc7e82)
 
-The idea is super for desaturating highlight or shadows in s-shaped contrast curves (like RGB filmic in Darktable does). But there was no way to realize luminance-constant coloured surfaces.
+So increasing contrast increases the density of color pigments, because it compresses all color pigments into the smaller space.
 
-Thus I modified gegl:image-gradient that is used by the core of gegl HDR colormapper:
+Some key-points to think about:
+- reducing contrast to "0" will result in a luminance-constant image with neutral gray (no particles, totally desaturated (ideal for desaturating highlights or shadows in s-shaped contrast curves (like RGB filmic in Darktable does - but with complex math)).
+- how can even (luminance-constant) coloured surfaces be represented?
 
-1) operate in linear light to stay in scene referred workflow as long as possible.
-2) divide gradient by luminance (to make gradient independent from gegl:exposure. Global exposure changes image gradient but relative image gradient stays constant.)
-3) represent image gradient ("delta") as a angle of gradient ("slope"). --> so the secant of gradient-angle represents something like "density" of image (projection of high contrasts to luminance-constant image represent high density ">> 1.0" and low contrasts are already luminance-constant with density "1.0")
+Thus I played around with gegl:image-density as an alternative that tries to project the image to an flat, contrast-less image. This approach has to be investigated later. Inbetween I modified the image-gradient tool to:
 
-So the chroma of a completely flattened image (luminance-constant) doesn't drop to zero, but gets only reduced according to density of "1.0" :-)
+1) operate on CIE Y channel only as it pursues an luminance-based tone mapping approach.
+2) operate in linear light to stay in scene referred workflow as long as possible.
+3) divide gradient by luminance (to make gradient independent from gegl:exposure. Global exposure changes image gradient but relative image gradient stays constant.)
 
 **This page is WIP!**
