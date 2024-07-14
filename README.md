@@ -56,7 +56,7 @@ Some key-points to think about:
 - reducing contrast to "0" will result in a luminance-constant image with neutral gray (no particles, totally desaturated (ideal for desaturating highlights or shadows in s-shaped contrast curves (like RGB filmic in Darktable does - but with complex math)).
 - how can even (luminance-constant) coloured surfaces be represented?
 
-Thus I played around with gegl:image-density as an alternative that tries to project the image to an flat, contrast-less image. This approach has to be investigated later. Inbetween I modified the image-gradient tool to:
+Thus I played around with gegl:image-density as an alternative that tries to project the image to an flat, contrast-less image. This approach has to be investigated later. Inbetween I modified the gegl:image-gradient operation to:
 
 1) operate on CIE Y channel only as it pursues an luminance-based tone mapping approach.
 2) operate in linear light to stay in scene referred workflow as long as possible.
