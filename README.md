@@ -21,6 +21,10 @@ Now the same with the HDR RangeCompressor Mantiuk 06. HDR itself looks faded fro
 And now a more massive version: what I often do is, to create an grayscale image with c2g and use it as "exposure map" for the image (aka luminance layer mode in GIMP).
 ![ColorMapExample_c2g](https://github.com/immanuelsch/gegl-HDR-ColorMapper/assets/23322212/a9b28d39-871f-4ca9-8917-83e94d848079)
 
+Another example here:
+![IMG_9733](https://github.com/user-attachments/assets/8de78478-6551-471c-9685-cd0bd30aaf85)
+
+
 # The Concept
 ## Theory
 - Increasing image contrast looks like compressing / squeezing the light parts of an image and the dark ones more together. So not only the lightness of each pixel is adopted, **but squeezing means, that the density of color pigments (saturation) increases also**.
