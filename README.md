@@ -57,6 +57,10 @@ Currently the operation is done as gegl-operation, but it could also be implemen
 
 The "aux" input reads the "original" image with a consistent natural color. The layer where the gegl-op runs holds the desired luminance of the final image.
 
+<img src="https://github.com/user-attachments/assets/5314c054-bf22-459a-8039-e6213dbd6fd9" width="400">
+
+
+
 ## Weaknesses
 - contrast can sometimes only be "read out" (reverse engineered) from the image (by determining linear image gradient divided by luminance). Preference should always be to directly derive contrast changes. From changes in tone curve, for example by making the Chroma Channel dependent on Luminance based tone curve.
 - the algo is not resilient by nature to image noise, that is indeed some kind of contrast (image gradient). Handling noise is currently done by some experimental smoothening filters.
