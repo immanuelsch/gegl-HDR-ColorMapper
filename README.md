@@ -36,6 +36,11 @@ Another example here:
 
 <img src="https://github.com/user-attachments/assets/8de78478-6551-471c-9685-cd0bd30aaf85" width="600">
 
+Or here in highRes:
+
+<img src="https://github.com/user-attachments/assets/1ddd4cbd-8b2f-4f51-a538-adec6918cf80" width="600">
+
+
 
 # The Concept
 ## Theory
