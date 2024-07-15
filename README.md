@@ -21,16 +21,20 @@ The effect on Luminance blending is also described here: https://rawpedia.rawthe
 
 ## Examples
 This image shows, the large original image. The contrast-enhanced one, that looks desaturated and the one processed by this gegl-HDR-ColorMapper.
-![ColorMapExample](https://github.com/immanuelsch/gegl-HDR-ColorMapper/assets/23322212/7f5c92ee-cfe1-443c-b268-6d441895a48f)
+
+<img src="https://github.com/immanuelsch/gegl-HDR-ColorMapper/assets/23322212/7f5c92ee-cfe1-443c-b268-6d441895a48f" width="600">
 
 Now the same with the HDR RangeCompressor Mantiuk 06. HDR itself looks faded from color perspective.
-![ColorMapExample_Mantiuk](https://github.com/immanuelsch/gegl-HDR-ColorMapper/assets/23322212/b9cf00a5-8798-4d45-8895-17105cb62cb2)
+
+<img src="https://github.com/immanuelsch/gegl-HDR-ColorMapper/assets/23322212/b9cf00a5-8798-4d45-8895-17105cb62cb2" width="600">
 
 And now a more massive version: what I often do is, to create an grayscale image with c2g and use it as "exposure map" for the image (aka luminance layer mode in GIMP).
-![ColorMapExample_c2g](https://github.com/immanuelsch/gegl-HDR-ColorMapper/assets/23322212/a9b28d39-871f-4ca9-8917-83e94d848079)
+
+<img src="https://github.com/immanuelsch/gegl-HDR-ColorMapper/assets/23322212/a9b28d39-871f-4ca9-8917-83e94d848079" width="600">
 
 Another example here:
-![IMG_9733](https://github.com/user-attachments/assets/8de78478-6551-471c-9685-cd0bd30aaf85)
+
+<img src="https://github.com/user-attachments/assets/8de78478-6551-471c-9685-cd0bd30aaf85" width="600">
 
 
 # The Concept
@@ -69,5 +73,17 @@ Thus I played around with gegl:image-density as an alternative that tries to pro
 1) operate on CIE Y channel only as it pursues an luminance-based tone mapping approach.
 2) operate in linear light to stay in scene referred workflow as long as possible.
 3) divide gradient by luminance (to make gradient independent from gegl:exposure. Global exposure changes image gradient but relative image gradient stays constant.)
+
+## tonecurves
+Just an example, why I prefer the luminance-based workflow over a toncurve in HSV color model. I applied this tonecurve (gamma 2.2):
+
+<img src="https://github.com/user-attachments/assets/18fa2de5-6fe9-4730-9542-4eb713e15d08" width="400">
+
+to an example color patch. Clearly to be seen: HSV tone curve up left does not really reduce luminance from colors. The luminance blend mode does really reduce brightness of the image but lacks saturation.
+
+<img src="https://github.com/user-attachments/assets/7c9e3b7e-82f3-4611-88dd-6ad0ff767764" width="500">
+
+So the best result seems to be lower row right picture.
+
 
 **This page is WIP!**
