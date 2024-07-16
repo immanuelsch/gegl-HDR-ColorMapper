@@ -47,7 +47,7 @@ enum_start (gegl_denoise_source_target)
    enum_value (GEGL_DENOISE_SOURCE_TARGET_NONE, "none", N_("None"))
 enum_end (GeglDenoiseSourceTarget)
 
-property_enum (denoise_source_target_mode, _("Denoise Luminance Channels"),
+property_enum (denoise_source_target_mode, _("Denoise Luminance Channels (broken)"),
                GeglDenoiseSourceTarget, gegl_denoise_source_target,
                GEGL_DENOISE_SOURCE_TARGET_NONE)
   description (_("Denoising of the luminance channel of source and target image"))
@@ -71,7 +71,7 @@ enum_start (gegl_denoise_chroma_scaling_factor)
    enum_value (GEGL_DENOISE_CHROMA_SCALING_FACTOR_NONE, "none", N_("None"))
 enum_end (GeglDenoiseChromaScalingFactor)
 
-property_enum (denoise_chroma_scaling_factor, _("Denoise Scaling Factor"),
+property_enum (denoise_chroma_scaling_factor, _("Denoise Scaling Factor (broken)"),
                GeglDenoiseChromaScalingFactor, gegl_denoise_chroma_scaling_factor,
                GEGL_DENOISE_CHROMA_SCALING_FACTOR_NONE)
   description (_("Denoises the factor that finally scales chromaticity"))
@@ -253,7 +253,7 @@ gegl_op_class_init (GeglOpClass *klass)
     "title",          _("HDR ColorMapper"),
     "name",           "immanuel:exposure_map",
     "categories",     "Artistic",
-    "description",  _("map colors of colorimetric consistent source image (aux) to the luminance channel of target scaling saturation proportionl with contrast change"),
+    "description",  _("map colors of colorimetric consistent source image (aux) to the luminance channel of target - scaling saturation proportional with contrast change"),
     NULL);
 
 }
