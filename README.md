@@ -19,8 +19,8 @@ But unfortunately I haven't found an available solution. A lot of pictures look 
 
 The effect on Luminance blending is also described here: https://rawpedia.rawtherapee.com/Exposure#Luminance. The recommendation: "If you want to manually counter-act the desaturation, using the L*a*b* Chromaticity slider is a more neutral way of compensating for it..."
 
-### Summary
-Task: Find find the “correct” chroma after remapping the images luminance from source to target. Independent from how target was created. In my case I create target from source using tonecurves on luminance, sigmoid on luminance c2g, mantiuk or contrast equalizers from Darktable … everything luminance-based - since it is rumored, luminance based workflows are more accurate.
+### Summary of motivation
+Task: Find find the “correct” chroma after remapping the images luminance from source to target. Independent from how target was created. In my case I create target from source using tonecurves on luminance, sigmoid on luminance c2g, mantiuk or contrast equalizers from Darktable. Everything luminance-based - since it is rumored, luminance based workflows were more accurate.
 
 ## Examples
 This image shows, the large original image. The contrast-enhanced one, that looks desaturated and the one processed by this gegl-HDR-ColorMapper.
