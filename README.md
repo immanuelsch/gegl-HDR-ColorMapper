@@ -1,5 +1,5 @@
 # gegl-HDR-ColorMapper
-Chromaticity mapping algorithm for range compression or contrast adjustment.
+Algorithm for chromatic consistency during luminance re-mapping.
 
 I'm the reporter of https://gitlab.gnome.org/GNOME/gegl/-/issues/171 that ended up in a native blending-based saturation approach.
 And I also published some code that lead Gimp to implement the Luminance Blend mode https://bugzilla.gnome.org/show_bug.cgi?id=753163.
