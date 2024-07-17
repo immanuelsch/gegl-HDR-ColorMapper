@@ -50,7 +50,7 @@ Or here in highRes:
 - Increasing image contrast looks like compressing / squeezing the light parts of an image and the dark ones more together. So not only the lightness of each pixel is adopted, **but squeezing means, that the density of color pigments (saturation) increases also**.
 - or the other way around: increasing contrast stretches things on a smaller lightness range to an wider range. So basically that is "stretching". Stretching means, that the same amount of color pigments is distributed in a bigger area. That reduces color density (saturation). This might be an explanation, why contrast stretched images "lack" pigments (saturation). To compensate for this effect, just increase the number of pigments (chromaticity) by the same ratio like the size of the surface increases.
 
-The proposed algo takes this model into account and does some scaling in linear RGB light. (Or, indeed it utilizes parts of the HSL(cie) color model, where L corresponds to CIE Y.)
+The proposed algo takes this model into account and just blends in linear RGB light. Changing saturation is done by simply blending between the image and its desaturated equivalent. (Or, indeed it utilizes parts of the HSL(cie) color model, where L corresponds to CIE Y.)
 
 The algo can cope with non-whitebalanced images and offers therefore an selector to define "physical white" - things that are perceived white under standard lighting conditions. It multiplies to neutral, does the changes in saturation, and afterward it puts the original tint back on the image.
 
@@ -60,7 +60,7 @@ Currently the operation is done as gegl-operation, but it could also be implemen
 
 The "aux" input reads the "original" image with a consistent natural color. The layer where the gegl-op runs holds the desired luminance of the final image.
 
-<img src="https://github.com/user-attachments/assets/5314c054-bf22-459a-8039-e6213dbd6fd9" width="400">
+<img src="https://github.com/user-attachments/assets/0303385f-c4b4-4013-a1be-8c4b80fc17a4" width="400">
 
 
 
