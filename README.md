@@ -7,17 +7,20 @@ And I also published some code that lead Gimp to implement the Luminance Blend m
 *To make things clear: I'm not a native programmer - so my code looks ugly :-) - it should only serve as PoC.*
 
 # Motivation
-I do not really like (HS)Value-based tone-curves, because they considerabely lack accuracy (examples shown below in tech part). Instead I changed over to an luminance-based approach:
+I do not really like (HS)Value-based tone-curves, because they considerabely lack accuracy (examples shown below in tech part). Instead I changed over to an luminance-based approach making luminance and color workflow independent:
 1) edit the image tonality using the CIE Y Luminance representation - aka the b&w image / desaturated image / grayscale image.
 2) after that, colorize that b&w image colorimetrically correct. 
 
-So tone curves are there to edit tonality separated from the color. This tone-adjustment activity is simply monochromatic. No need for RGB-channels. After tonality fits - color editing is done.
+So luminance-based tone curves are there to edit tonality separated from the color. This tone-adjustment activity is simply monochromatic. No need for RGB-channels. After (luminance-)tonality fits - there should not be a need to tune colors afterwards.
 
-A lot of pictures look very desaturated when increasing image contrast on Y channel. All receipes do not really help in a full extent: They adopt lightness/luminance and -contrast but to not map color correct from a color-intensity perspective.
+But unfortunately I haven't found an available solution. A lot of pictures look very desaturated when increasing image contrast on Y channel. All receipes do not really help in a full extent: They adopt lightness/luminance and -contrast but to not map color correct from a color-intensity perspective.
 - using GIMP LCH Lightness blend mode to adopt image contrast not even scales chroma at all. It controls lightness completely independent from chromaticity.
 - even using GIMP Luminance blend mode - that I brought up - does not fully satisfy the chromaticity/saturation aspect - despite keeping saturation constant while scaling lightness. Perceived result fits much better, than the above mentioned pure LCH Lightness blend mode.
 
 The effect on Luminance blending is also described here: https://rawpedia.rawtherapee.com/Exposure#Luminance. The recommendation: "If you want to manually counter-act the desaturation, using the L*a*b* Chromaticity slider is a more neutral way of compensating for it..."
+
+### Summary
+Task: Find find the “correct” chroma after remapping the images luminance from source to target. Independent from how target was created. In my case I create target from source using tonecurves on luminance, sigmoid on luminance c2g, mantiuk or contrast equalizers from Darktable … everything luminance-based - since it is rumored, luminance based workflows are more accurate.
 
 ## Examples
 This image shows, the large original image. The contrast-enhanced one, that looks desaturated and the one processed by this gegl-HDR-ColorMapper.
