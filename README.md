@@ -97,5 +97,9 @@ to an example color patch. Clearly to be seen: HSV tone curve up left does not r
 
 So the best result seems to be lower row right picture.
 
+# ToDo
+- div-by-zero handling (currently some artifacts similar to "dead pixels", where image gradient 0.0).
+
+
 
 **This page is WIP!**
