@@ -43,7 +43,8 @@ Or here in highRes:
 
 <img src="https://github.com/user-attachments/assets/1ddd4cbd-8b2f-4f51-a538-adec6918cf80" width="600">
 
-Here I used regular Darktable sigmoid tonal range remapping:
+
+Here a version that is based on regular Darktable sigmoid tonal range remapping:
 
 <img src="https://github.com/user-attachments/assets/8c3cdd0b-7b32-425a-a91b-2347177e6fe7" width="600">
 
