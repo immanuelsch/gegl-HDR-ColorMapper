@@ -1,0 +1,24 @@
+id=in # name a reference to the input buffer 'in'
+
+rgb-clip clip-high=true high-limit=0 clip-low=false
+id=clip
+
+ref=in
+saturation scale=0
+id=gray
+
+subtract aux=[ ref=clip ]
+component-extract component=hsv-v
+id=hsv
+
+ref=gray
+divide aux=[ ref=hsv]
+id=k
+
+ref=in
+subtract aux=[ ref=gray]
+
+multiply aux=[ ref=k ]
+
+add aux=[ ref=gray ]
+
