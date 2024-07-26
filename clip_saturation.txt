@@ -1,24 +1,53 @@
-id=in # name a reference to the input buffer 'in'
+### reduces saturation on a per-pixel basis to fit into RGB-range [0.0 ... 1.0] ("pseudo-gamut")
 
-rgb-clip clip-high=true high-limit=0 clip-low=false
-id=clip
+id=in # reference to input buffer
+
+
+### desaturate out-of-gamut negative RGB values < 0.0
+rgb-clip clip-high=true high-limit=0.0 clip-low=false
+id=clip_neg
 
 ref=in
 saturation scale=0
 id=gray
 
-subtract aux=[ ref=clip ]
-component-extract component=hsv-v
-id=hsv
+subtract aux=[ ref=clip_neg ]
+id=overcolor_neg
 
 ref=gray
-divide aux=[ ref=hsv]
-id=k
+divide aux=[ ref=overcolor_neg]
+gegl:invert-linear
+gegl:component-extract component=hsv-v
+gegl:invert-linear
+id=desaturate_oog_negative
+
+
+### desaturate out-of-gamut RGB values > 1.0
+ref=in
+subtract aux=[ ref=gray ]
+id=overcolor_pos
 
 ref=in
+# "input minus gray"
+subtract aux=[ ref= gegl:color value=white]
+rgb-clip clip-low=true low-limit=0.0 clip-high=false
+divide aux=[ ref=overcolor_pos]
+gegl:component-extract component=hsv-v
+# one minus factor_positive
+id=1_k_pos
+
+gegl:color value=white
+subtract aux=[ ref=1_k_pos]
+id=desaturate_oog_positive
+
+
+### combine desaturation factor
+gegl:darken aux=[ ref=desaturate_oog_negative]
+id=desaturate_oog
+
+### render desaturation
+ref=in
 subtract aux=[ ref=gray]
-
-multiply aux=[ ref=k ]
-
+multiply aux=[ ref=desaturate_oog ]
 add aux=[ ref=gray ]
 
