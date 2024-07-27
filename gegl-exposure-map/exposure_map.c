@@ -26,7 +26,7 @@
 /* define gegl properties
  * for scaling the chroma scaling effect of this plugin
  */
-property_double (chroma_scale_gamma, _("strength"), 0.4545)
+property_double (chroma_scale_gamma, _("strength"), 1.0)
     description (_("Scales chroma-adoption effect of plugin. Usually ranges between 0.454 (c2g) - 1.0"))
     value_range (0.1, 3.0) /* arbitrarily large number */
     ui_range(0.1, 1.0) /* for the slider in the user interface */

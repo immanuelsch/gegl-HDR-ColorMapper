@@ -130,15 +130,23 @@ process (GeglOperation       *operation,
           gfloat dx;
           gfloat dy;
           gfloat magnitude;
+          gdouble YSum; // sum of CIE Y values
           gdouble recip_avgY; // reciprocal of averaged luminance
 
           dx = (mid_ptr[(x-1)] - mid_ptr[(x+1)]);
           dy = (top_ptr[x] - down_ptr[x]);
-          recip_avgY = 4.0 / (mid_ptr[(x-1)] + mid_ptr[(x+1)] + top_ptr[x] + down_ptr[x]);
-          /*
-           * FIXME: div_by_zero handling
-           */
-          magnitude = sqrt (POW2(dx) + POW2(dy)) * recip_avgY * 0.5;
+          YSum = (mid_ptr[(x-1)] + mid_ptr[(x+1)] + top_ptr[x] + down_ptr[x]);
+
+          if (fabs(YSum) > 0.0001)
+          {
+            recip_avgY = 4.0 / YSum;
+            magnitude = fmax (sqrt (POW2(dx) + POW2(dy)), 0.001) * recip_avgY * 0.5;
+//            magnitude = sqrt (POW2(dx) + POW2(dy)) * recip_avgY * 0.5;
+          }
+          else
+          {
+            magnitude = 0.0;
+          }
 
           row4[(x-1) * n_components] = magnitude;
         }
