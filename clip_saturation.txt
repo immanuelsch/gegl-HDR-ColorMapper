@@ -1,4 +1,31 @@
 ### reduces saturation on a per-pixel basis to fit into RGB-range [0.0 ... 1.0] ("pseudo-gamut")
+# desaturation factor positive gamut overshoot
+# math
+#                 ( max ( (image - 1.0), 0.0)     // 1.0 = rgb positive max values. so "image - 1.0" is the over-gamut amount
+# k_pos = 1 - max (-------------------------)     // desaturate_oog_positive
+#                 (    image - gray_image   )     // gray image can also be "tinted" or whitepoint-tinted
+# 
+# "image-math"
+#                       ( rgb_clip_low ( (image - 1.0), 0.0)
+# k_pos = 1 - HSV_Value (-------------------------------------)     // desaturate_oog_positive
+#                       (          image - gray_image         )
+#
+# 
+# desaturation factor negative gamut overshoot
+# math
+#
+#         (          gray_image              )
+# k_neg = (----------------------------------)     // desaturate_oog_negative
+#         (   gray_image - min (image, 0.0)  )     // so min "(image, 0.0)" is the negative amount of the rgb channel
+# 
+# "image-math"
+#
+#                     (                gray_image                    )
+# k_neg = - HSV_Value (- --------------------------------------------)     // desaturate_oog_negative
+#                     (    gray_image - rgb_clip_high (image, 0.0)   )
+# 
+# after that min of k_neg and k_pos defines the final factor for desaturating the image to fit "in gamut"/ RGB [0...1]
+###
 
 id=in # reference to input buffer
 
@@ -28,7 +55,7 @@ subtract aux=[ ref=gray ]
 id=overcolor_pos
 
 ref=in
-# "input minus gray"
+# "input minus 1.0"
 subtract aux=[ ref= gegl:color value=white]
 rgb-clip clip-low=true low-limit=0.0 clip-high=false
 divide aux=[ ref=overcolor_pos]
