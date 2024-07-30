@@ -68,20 +68,24 @@ static void attach(GeglOperation *operation)
   GeglNode *whitepoint, *y_whitepoint, *wp;     // color considered as white - untouched with regard to saturation adaption
   GeglNode *factor2neutral;                     // factor to convert to neutral
   GeglNode *clip_neg, *clip_pos;
-  GeglNode *gray, *subtract_gray, *desaturate_color, *add_desaturated;
+  GeglNode *gray, *white, *white_plane;
+  GeglNode *subtract_gray, *desaturate_color, *add_desaturated;
   GeglNode *overcolor_neg, *overcolor_pos;
-  GeglNode *div_by_overcolor_neg;
+  GeglNode *div_by_overcolor_neg, *div_by_overcolor_pos;
   GeglNode *invert_linear, *reinvert_linear;
-  GeglNode *HSV_neg;
+  GeglNode *HSV_neg, *HSV_pos;
+  GeglNode *image_minus_white;
+  GeglNode *k_pos, *min_kPosNeg;
   GeglNode *debug;
-  
+  GeglColor *white_color;
   
 
 // map current layer (yNew_in), reference layer (original) and output (result of gegl op)
-  yNew_in    = gegl_node_get_input_proxy (gegl, "input");
-  old        = gegl_node_get_input_proxy (gegl, "aux");
-  output     = gegl_node_get_output_proxy (gegl, "output");
-
+  yNew_in      = gegl_node_get_input_proxy (gegl, "input");
+  old          = gegl_node_get_input_proxy (gegl, "aux");
+  output       = gegl_node_get_output_proxy (gegl, "output");
+  white_color  = gegl_color_new ("rgb(1.0,1.0,1.0)");
+ 
 // graph branch 0:
 //  whitepoint = gegl_node_new_child (gegl, "operation", "gegl:color", "value", gegl_color_new ("rgb(1.0,1.0,1.0)"), NULL);
   wp = gegl_node_new_child (gegl, "operation", "gegl:color", NULL);
@@ -151,7 +155,7 @@ static void attach(GeglOperation *operation)
   
   gegl_node_link_many (old_wb, new_unc, color_new, color_new_comp, new_comp, final, NULL);
 
-// graph branch 4:
+// graph branch 4.1 (k_neg)
   clip_neg = gegl_node_new_child (gegl, "operation", "gegl:rgb-clip", "clip-high", TRUE, "clip-low", FALSE, "high-limit", 0.0, NULL);
   gray = gegl_node_new_child (gegl, "operation", "gegl:divide", NULL);
   gegl_node_connect_from (gray, "aux", factor2neutral, "output");
@@ -165,21 +169,55 @@ static void attach(GeglOperation *operation)
 
   gegl_node_link (final, clip_neg);
   gegl_node_link_many (yNew, gray, overcolor_neg, NULL);
+// k_neg
   gegl_node_link_many (gray, div_by_overcolor_neg, invert_linear, HSV_neg, reinvert_linear, NULL);
 
+
+// graph branch 4.2 (k_pos)
+  overcolor_pos = gegl_node_new_child (gegl, "operation", "gegl:subtract", NULL);
+  gegl_node_connect_from (overcolor_pos, "aux", gray, "output");
+
+  white_plane = gegl_node_new_child (gegl, "operation", "gegl:color", "value", white_color, NULL);
+  white = gegl_node_new_child (gegl, "operation", "gegl:crop", NULL);
+  gegl_node_connect_from (white, "aux", old, "output");
+
+  image_minus_white = gegl_node_new_child (gegl, "operation", "gegl:subtract", NULL);
+  gegl_node_connect_from (image_minus_white, "aux", white, "output");
+  
+  clip_pos = gegl_node_new_child (gegl, "operation", "gegl:rgb-clip", "clip-low", TRUE, "clip-high", FALSE, "low-limit", 0.0, NULL);
+  div_by_overcolor_pos = gegl_node_new_child (gegl, "operation", "gegl:divide", NULL);
+  gegl_node_connect_from (div_by_overcolor_pos, "aux", overcolor_pos, "output");
+  HSV_pos = gegl_node_new_child (gegl, "operation", "gegl:component-extract", "component", 5, NULL);
+// k_pos
+  k_pos = gegl_node_new_child (gegl, "operation", "gegl:subtract", NULL);
+  gegl_node_connect_from (k_pos, "aux", HSV_pos, "output");
+
+// construct graph
+  gegl_node_link (final, overcolor_pos);
+  gegl_node_link (white_plane, white);
+  gegl_node_link_many (final, image_minus_white, clip_pos, div_by_overcolor_pos, HSV_pos, NULL);
+  gegl_node_link (white, k_pos);
+  
 // graph branch 5: reduce saturation
+// kombine pos and neg desaturation factors
+  min_kPosNeg = gegl_node_new_child (gegl, "operation", "gegl:darken", NULL);
+  gegl_node_connect_from (min_kPosNeg, "aux", reinvert_linear, "output");
+
   subtract_gray = gegl_node_new_child (gegl, "operation", "gegl:subtract", NULL);
   gegl_node_connect_from (subtract_gray, "aux", gray, "output");
   desaturate_color = gegl_node_new_child (gegl, "operation", "gegl:multiply", NULL);
-  gegl_node_connect_from (desaturate_color, "aux", reinvert_linear, "output");
+  gegl_node_connect_from (desaturate_color, "aux", min_kPosNeg, "output");
   add_desaturated = gegl_node_new_child (gegl, "operation", "gegl:add", NULL);
   gegl_node_connect_from (add_desaturated, "aux", gray, "output");
 
 //  debug = gegl_node_new_child (gegl, "operation", "gegl:component-extract", "component", 5, NULL);
 //  gegl_node_link (final, debug);
 
+  gegl_node_link (k_pos, min_kPosNeg);
+
   gegl_node_link_many (final, subtract_gray, desaturate_color, add_desaturated, NULL);
   gegl_node_link (add_desaturated, output);
+//  gegl_node_link (min_kPosNeg, output);
    
 // meta redirects
   
