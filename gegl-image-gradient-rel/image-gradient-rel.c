@@ -140,8 +140,8 @@ process (GeglOperation       *operation,
           if (fabs(YSum) > 0.0001)
           {
             recip_avgY = 4.0 / YSum;
-            magnitude = fmax (sqrt (POW2(dx) + POW2(dy)), 0.001) * recip_avgY * 0.5;
-//            magnitude = sqrt (POW2(dx) + POW2(dy)) * recip_avgY * 0.5;
+//            magnitude = fmax (sqrt (POW2(dx) + POW2(dy)), 0.001) * recip_avgY * 0.5;
+            magnitude = sqrt (POW2(dx) + POW2(dy)) * recip_avgY * 0.5;
           }
           else
           {
