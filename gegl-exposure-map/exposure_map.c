@@ -26,10 +26,18 @@
 /* define gegl properties
  * for scaling the chroma scaling effect of this plugin
  */
-property_double (chroma_scale_gamma, _("strength"), 1.0)
+property_double (chroma_scale_gamma, _("strength v0.9"), 1.0)
     description (_("Scales chroma-adoption effect of plugin. Usually ranges between 0.454 (c2g) - 1.0"))
     value_range (0.1, 3.0) /* arbitrarily large number */
     ui_range(0.1, 1.0) /* for the slider in the user interface */
+
+property_double (gradient_min, _("strength"), 0.05)
+    description (_("Scales chroma-adoption effect of plugin by adding an gradient-offset."))
+    value_range (0.0, 3.0) /* arbitrarily large number */
+    ui_range (0.0, 1.0) /* for the slider in the user interface */
+    ui_gamma (2.0) /* gamma for the slider in the user interface */
+//    ui_steps (0.000001, 0.001)
+//    ui_digits (6)
 
 /* define gegl properties
  * for whitepoint in case the algo runs on non-whitebalanced images.
@@ -76,6 +84,7 @@ static void attach(GeglOperation *operation)
   GeglNode *HSV_neg, *HSV_pos;
   GeglNode *image_minus_white;
   GeglNode *k_pos, *min_kPosNeg;
+  GeglNode *gradient_offset, *cNew_raw, *cOld_raw;
   GeglNode *debug;
   GeglColor *white_color;
   
@@ -87,6 +96,12 @@ static void attach(GeglOperation *operation)
   white_color  = gegl_color_new ("rgb(1.0,1.0,1.0)");
  
 // graph branch 0:
+  white_plane = gegl_node_new_child (gegl, "operation", "gegl:color", "value", white_color, NULL);
+  white = gegl_node_new_child (gegl, "operation", "gegl:crop", NULL);
+  gegl_node_connect_from (white, "aux", old, "output");
+  gradient_offset = gegl_node_new_child (gegl, "operation", "gegl:multiply", NULL);
+  gegl_node_link_many (white_plane, white, gradient_offset, NULL);
+  
 //  whitepoint = gegl_node_new_child (gegl, "operation", "gegl:color", "value", gegl_color_new ("rgb(1.0,1.0,1.0)"), NULL);
   wp = gegl_node_new_child (gegl, "operation", "gegl:color", NULL);
   whitepoint = gegl_node_new_child (gegl, "operation", "gegl:crop", NULL);
@@ -105,9 +120,11 @@ static void attach(GeglOperation *operation)
 // graph branch 1:
   // make sure new image / current layer is grayscale
   yNew = gegl_node_new_child (gegl, "operation", "gegl:saturation", "scale", 0.0, NULL);
-  cNew = gegl_node_new_child (gegl, "operation", "immanuel:image-gradient-rel", NULL);
+  cNew_raw = gegl_node_new_child (gegl, "operation", "immanuel:image-gradient-rel", NULL);
+  cNew = gegl_node_new_child (gegl, "operation", "gegl:add", NULL);
+  gegl_node_connect_from (cNew, "aux", gradient_offset, "output");
 //  cNew = gegl_node_new_child (gegl, "operation", "immanuel:image-density", NULL);
-  gegl_node_link_many (yNew_in, yNew, cNew, NULL);
+  gegl_node_link_many (yNew_in, yNew, cNew_raw, cNew, NULL);
 
 // graph branch 2:
   // make sure reference image / "aux" is grayscale
@@ -115,9 +132,11 @@ static void attach(GeglOperation *operation)
   //  yOld = gegl_node_new_child (gegl, "operation", "gegl:gray", NULL);
   yOld = gegl_node_new_child (gegl, "operation", "gegl:saturation", "scale", 0.0, NULL);
 //  yOldY = gegl_node_new_child (gegl, "operation", "gegl:convert-format", "format", "Y float", NULL);
-  cOld = gegl_node_new_child (gegl, "operation", "immanuel:image-gradient-rel", NULL); 
+  cOld_raw = gegl_node_new_child (gegl, "operation", "immanuel:image-gradient-rel", NULL); 
+  cOld = gegl_node_new_child (gegl, "operation", "gegl:add", NULL); 
+  gegl_node_connect_from (cOld, "aux", gradient_offset, "output");
 // cOld = gegl_node_new_child (gegl, "operation", "immanuel:image-density", NULL);  //image dimension ranzig
-  gegl_node_link_many (old, yOld, cOld, NULL);
+  gegl_node_link_many (old, yOld, cOld_raw, cOld, NULL);
 
 
 // link graph branches to determine both scaling factors
@@ -177,10 +196,6 @@ static void attach(GeglOperation *operation)
   overcolor_pos = gegl_node_new_child (gegl, "operation", "gegl:subtract", NULL);
   gegl_node_connect_from (overcolor_pos, "aux", gray, "output");
 
-  white_plane = gegl_node_new_child (gegl, "operation", "gegl:color", "value", white_color, NULL);
-  white = gegl_node_new_child (gegl, "operation", "gegl:crop", NULL);
-  gegl_node_connect_from (white, "aux", old, "output");
-
   image_minus_white = gegl_node_new_child (gegl, "operation", "gegl:subtract", NULL);
   gegl_node_connect_from (image_minus_white, "aux", white, "output");
   
@@ -194,7 +209,6 @@ static void attach(GeglOperation *operation)
 
 // construct graph
   gegl_node_link (final, overcolor_pos);
-  gegl_node_link (white_plane, white);
   gegl_node_link_many (final, image_minus_white, clip_pos, div_by_overcolor_pos, HSV_pos, NULL);
   gegl_node_link (white, k_pos);
   
@@ -217,12 +231,14 @@ static void attach(GeglOperation *operation)
 
   gegl_node_link_many (final, subtract_gray, desaturate_color, add_desaturated, NULL);
   gegl_node_link (add_desaturated, output);
+//  gegl_node_link (final, output);
 //  gegl_node_link (min_kPosNeg, output);
    
 // meta redirects
   
 gegl_operation_meta_redirect (operation, "wp_color", wp, "value");
 gegl_operation_meta_redirect (operation, "chroma_scale_gamma", scale_contrast, "value");
+gegl_operation_meta_redirect (operation, "gradient_min", gradient_offset, "value");
 
 }
 
