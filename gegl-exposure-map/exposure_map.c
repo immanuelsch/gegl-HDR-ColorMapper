@@ -99,8 +99,7 @@ static void attach(GeglOperation *operation)
   white_plane = gegl_node_new_child (gegl, "operation", "gegl:color", "value", white_color, NULL);
   white = gegl_node_new_child (gegl, "operation", "gegl:crop", NULL);
   gegl_node_connect_from (white, "aux", old, "output");
-  gradient_offset = gegl_node_new_child (gegl, "operation", "gegl:multiply", NULL);
-  gegl_node_link_many (white_plane, white, gradient_offset, NULL);
+  gegl_node_link (white_plane, white);
   
 //  whitepoint = gegl_node_new_child (gegl, "operation", "gegl:color", "value", gegl_color_new ("rgb(1.0,1.0,1.0)"), NULL);
   wp = gegl_node_new_child (gegl, "operation", "gegl:color", NULL);
@@ -121,10 +120,8 @@ static void attach(GeglOperation *operation)
   // make sure new image / current layer is grayscale
   yNew = gegl_node_new_child (gegl, "operation", "gegl:saturation", "scale", 0.0, NULL);
   cNew_raw = gegl_node_new_child (gegl, "operation", "immanuel:image-gradient-rel", NULL);
-  cNew = gegl_node_new_child (gegl, "operation", "gegl:add", NULL);
-  gegl_node_connect_from (cNew, "aux", gradient_offset, "output");
 //  cNew = gegl_node_new_child (gegl, "operation", "immanuel:image-density", NULL);
-  gegl_node_link_many (yNew_in, yNew, cNew_raw, cNew, NULL);
+  gegl_node_link_many (yNew_in, yNew, cNew_raw, NULL);
 
 // graph branch 2:
   // make sure reference image / "aux" is grayscale
@@ -133,10 +130,19 @@ static void attach(GeglOperation *operation)
   yOld = gegl_node_new_child (gegl, "operation", "gegl:saturation", "scale", 0.0, NULL);
 //  yOldY = gegl_node_new_child (gegl, "operation", "gegl:convert-format", "format", "Y float", NULL);
   cOld_raw = gegl_node_new_child (gegl, "operation", "immanuel:image-gradient-rel", NULL); 
-  cOld = gegl_node_new_child (gegl, "operation", "gegl:add", NULL); 
-  gegl_node_connect_from (cOld, "aux", gradient_offset, "output");
 // cOld = gegl_node_new_child (gegl, "operation", "immanuel:image-density", NULL);  //image dimension ranzig
-  gegl_node_link_many (old, yOld, cOld_raw, cOld, NULL);
+
+  gradient_offset = gegl_node_new_child (gegl, "operation", "gegl:add", NULL);
+  gegl_node_connect_from (gradient_offset, "aux", cNew_raw, "output");
+
+  cOld = gegl_node_new_child (gegl, "operation", "gegl:add", NULL);
+  gegl_node_connect_from (cOld, "aux", cOld_raw, "output");
+
+  gegl_node_link_many (old, yOld, cOld_raw, gradient_offset, cOld, NULL);
+
+  cNew = gegl_node_new_child (gegl, "operation", "gegl:add", NULL);
+  gegl_node_connect_from (cNew, "aux", gradient_offset, "output");
+  gegl_node_link (cNew_raw, cNew);
 
 
 // link graph branches to determine both scaling factors
@@ -147,7 +153,7 @@ static void attach(GeglOperation *operation)
 
 
   scale_contrast_without_gamma = gegl_node_new_child (gegl, "operation", "gegl:divide", NULL);
-  scale_contrast = gegl_node_new_child (gegl, "operation", "gegl:gamma", "value", 0.5, NULL);
+  scale_contrast = gegl_node_new_child (gegl, "operation", "gegl:gamma", NULL);
   gegl_node_connect_from (scale_contrast_without_gamma, "aux", cOld, "output");
   gegl_node_link_many (cNew, scale_contrast_without_gamma, scale_contrast, NULL);
 
