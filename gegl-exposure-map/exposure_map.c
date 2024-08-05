@@ -26,18 +26,19 @@
 /* define gegl properties
  * for scaling the chroma scaling effect of this plugin
  */
-property_double (chroma_scale_gamma, _("strength v0.9"), 1.0)
+property_double (chroma_scale_gamma, _("strength"), 1.0)
     description (_("Scales chroma-adoption effect of plugin. Usually ranges between 0.454 (c2g) - 1.0"))
     value_range (0.1, 3.0) /* arbitrarily large number */
-    ui_range(0.1, 1.0) /* for the slider in the user interface */
+    ui_range(0.1, 3.0) /* for the slider in the user interface */
 
-property_double (gradient_min, _("strength"), 0.05)
-    description (_("Scales chroma-adoption effect of plugin by adding an gradient-offset."))
-    value_range (0.0, 3.0) /* arbitrarily large number */
-    ui_range (0.0, 1.0) /* for the slider in the user interface */
-    ui_gamma (2.0) /* gamma for the slider in the user interface */
-//    ui_steps (0.000001, 0.001)
-//    ui_digits (6)
+
+// property_double (gradient_min, _("strength"), 0.05)
+//     description (_("Scales chroma-adoption effect of plugin by adding an gradient-offset."))
+//     value_range (0.0, 3.0) /* arbitrarily large number */
+//     ui_range (0.0, 1.0) /* for the slider in the user interface */
+//     ui_gamma (2.0) /* gamma for the slider in the user interface */
+// //    ui_steps (0.000001, 0.001)
+// //    ui_digits (6)
 
 /* define gegl properties
  * for whitepoint in case the algo runs on non-whitebalanced images.
@@ -244,7 +245,7 @@ static void attach(GeglOperation *operation)
   
 gegl_operation_meta_redirect (operation, "wp_color", wp, "value");
 gegl_operation_meta_redirect (operation, "chroma_scale_gamma", scale_contrast, "value");
-gegl_operation_meta_redirect (operation, "gradient_min", gradient_offset, "value");
+// gegl_operation_meta_redirect (operation, "gradient_min", gradient_offset, "value");
 
 }
 
