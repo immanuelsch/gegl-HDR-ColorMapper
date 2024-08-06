@@ -41,7 +41,7 @@ property_enum (technology_chromaticity_compensation, _("Technology Chromaticity 
 property_double (scale, _("scale strengh of effect"), 1.0)
   description(_("Strength of chromaticity adoption effect."))
   value_range   (0.0, 3.0)
-  ui_range      (0.5, 2.0)
+  ui_range      (0.0, 2.0)
   
 #else
 
@@ -131,97 +131,192 @@ color_mapper (GeglBuffer          *input,
               const GeglRectangle *dst_rect,
               gdouble              scale,
               GeglColor           *WhiteRepresentation,
-              gint                level)
+              gint                 level)
 
 {
   const Babl *space = gegl_buffer_get_format (output);
-  const Babl *tmp_format = babl_format_with_space ("Y float", space);
-  const Babl *format = gegl_buffer_get_format (output);
-  gfloat *row1;
-  gfloat *row2;
-  gfloat *row3;
-  gfloat *row4;
-  gfloat *top_ptr;
-  gfloat *mid_ptr;
-  gfloat *down_ptr;
-  gfloat *tmp_ptr;
+  const Babl *gray_format = babl_format_with_space ("Y float", space);
+  const Babl *format = babl_format_with_space ("RGBA float", space);
+
+  /* input grayscale */
+  gfloat *row1_in, *row2_in, *row3_in;
+  gfloat *top_ptr_in, *mid_ptr_in, *down_ptr_in, *tmp_ptr_in;
+
+  /* aux grayscale */
+  gfloat *row1_aux, *row2_aux, *row3_aux;
+  gfloat *top_ptr_aux, *mid_ptr_aux, *down_ptr_aux, *tmp_ptr_aux;
+
+  /* in, aux full buffer */
+  gfloat *in_buf, *aux_buf;
+  
+  gfloat *row_out;
   gint    x, y;
 
   GeglRectangle row_rect;
   GeglRectangle out_rect;
 
-  row1 = g_new (gfloat, src_rect->width);
-  row2 = g_new (gfloat, src_rect->width);
-  row3 = g_new (gfloat, src_rect->width);
-  row4 = g_new0 (gfloat, dst_rect->width * 4);
+  in_buf  = g_new (gfloat, dst_rect->width * dst_rect->height * 4);
+  aux_buf = g_new0 (gfloat, dst_rect->width * dst_rect->height * 4);
 
-  top_ptr  = row1;
-  mid_ptr  = row2;
-  down_ptr = row3;
+  row1_in = g_new (gfloat, src_rect->width);
+  row2_in = g_new (gfloat, src_rect->width);
+  row3_in = g_new (gfloat, src_rect->width);
+  row1_aux = g_new0 (gfloat, src_rect->width);
+  row2_aux = g_new0 (gfloat, src_rect->width);
+  row3_aux = g_new0 (gfloat, src_rect->width);
+
+  row_out = g_new0 (gfloat, dst_rect->width * 4);  
+  
+  top_ptr_in  = row1_in;
+  mid_ptr_in  = row2_in;
+  down_ptr_in = row3_in;
+  top_ptr_aux  = row1_aux;
+  mid_ptr_aux  = row2_aux;
+  down_ptr_aux = row3_aux;
 
   row_rect.width = src_rect->width;
   row_rect.height = 1;
-  row_rect.x = src_rect->x - 1;
-  row_rect.y = src_rect->y - 1;
+  row_rect.x = src_rect->x;
+  row_rect.y = src_rect->y;
 
   out_rect.x      = dst_rect->x;
   out_rect.width  = dst_rect->width;
   out_rect.height = 1;
 
-  gegl_buffer_get (input, &row_rect, 1.0, tmp_format, top_ptr,
+  /* fill gegl buffer with colored data of in, aux */
+  gegl_buffer_get (input, dst_rect, 1.0, format, in_buf,
                    GEGL_AUTO_ROWSTRIDE, GEGL_ABYSS_CLAMP);
-
+  if (aux)
+    {
+      gegl_buffer_get (aux, dst_rect, 1.0, format, aux_buf,
+                       GEGL_AUTO_ROWSTRIDE, GEGL_ABYSS_CLAMP);
+    }
+ 
+  /* fill gegl buffer row-wise with grayscale data */  
+  gegl_buffer_get (input, &row_rect, 1.0, gray_format, top_ptr_in,
+                   GEGL_AUTO_ROWSTRIDE, GEGL_ABYSS_CLAMP);
+  if (aux)
+    {
+      gegl_buffer_get (aux, &row_rect, 1.0, gray_format, top_ptr_aux,
+                       GEGL_AUTO_ROWSTRIDE, GEGL_ABYSS_CLAMP);
+    }
+    
   row_rect.y++;
-  gegl_buffer_get (input, &row_rect, 1.0, tmp_format, mid_ptr,
+  gegl_buffer_get (input, &row_rect, 1.0, gray_format, mid_ptr_in,
                    GEGL_AUTO_ROWSTRIDE, GEGL_ABYSS_CLAMP);
+  if (aux)
+    {
+      gegl_buffer_get (aux, &row_rect, 1.0, gray_format, mid_ptr_aux,
+                       GEGL_AUTO_ROWSTRIDE, GEGL_ABYSS_CLAMP);
+    }
 
+  /* loop rows and compute contrast ratio between both input and aux */    
   for (y = dst_rect->y; y < dst_rect->y + dst_rect->height; y++)
     {
       row_rect.y = y + 1;
       out_rect.y = y;
 
-      gegl_buffer_get (input, &row_rect, 1.0, tmp_format, down_ptr,
+      gegl_buffer_get (input, &row_rect, 1.0, gray_format, down_ptr_in,
                        GEGL_AUTO_ROWSTRIDE, GEGL_ABYSS_CLAMP);
+      if (aux)
+        {
+          gegl_buffer_get (aux, &row_rect, 1.0, gray_format, down_ptr_aux,
+                           GEGL_AUTO_ROWSTRIDE, GEGL_ABYSS_CLAMP);
+        }
 
       for (x = 1; x < row_rect.width - 1; x++)
         {
-          gfloat dx;
-          gfloat dy;
-          gfloat magnitude;
-          gdouble YSum; // sum of CIE Y values
-          gdouble recip_avgY; // reciprocal of averaged luminance
+          gfloat dx_in, dx_aux;
+          gfloat dy_in, dy_aux;
+          gfloat contrast_in, contrast_aux, contrast_offset;
+          gfloat YMin = 0.0001;
+ 
+          
+          /* contrast of input div by aux */
+          gfloat contrast_ratio;
+          gfloat luminance_ratio;
+          
+          /* sum of CIE Y values of neigbouring pixels */
+          gdouble YSum_in, YSum_aux;
 
-          dx = (mid_ptr[(x-1)] - mid_ptr[(x+1)]);
-          dy = (top_ptr[x] - down_ptr[x]);
-          YSum = (mid_ptr[(x-1)] + mid_ptr[(x+1)] + top_ptr[x] + down_ptr[x]);
+          /* reciprocal of averaged luminance */
+          gdouble recip_avgY_in, recip_avgY_aux;
 
-          if (fabs(YSum) > 0.0001)
+          /* compute dx, dy and YSum for input and aux buffer */          
+          dx_in = (mid_ptr_in[(x-1)] - mid_ptr_in[(x+1)]);
+          dy_in = (top_ptr_in[x] - down_ptr_in[x]);
+          YSum_in = (mid_ptr_in[(x-1)] + mid_ptr_in[(x+1)] + top_ptr_in[x] + down_ptr_in[x]);
+          dx_aux = (mid_ptr_aux[(x-1)] - mid_ptr_aux[(x+1)]);
+          dy_aux = (top_ptr_aux[x] - down_ptr_aux[x]);
+          YSum_aux = (mid_ptr_aux[(x-1)] + mid_ptr_aux[(x+1)] + top_ptr_aux[x] + down_ptr_aux[x]);
+
+          
+          if (fabs(YSum_in) > YMin)
           {
-            recip_avgY = 4.0 / YSum;
-//            magnitude = fmax (sqrt (POW2(dx) + POW2(dy)), 0.001) * recip_avgY * 0.5;
-            magnitude = sqrt (POW2(dx) + POW2(dy)) * recip_avgY * 0.5;
+            recip_avgY_in = 4.0 / YSum_in;
+            contrast_in = sqrtf (POW2(dx_in) + POW2(dy_in)) * recip_avgY_in * 0.5;
           }
           else
           {
-            magnitude = 0.0;
+            contrast_in = 0.0;
           }
 
-          row4[(x-1)] = magnitude;
+          if (fabs(YSum_aux) > YMin)
+          {
+            recip_avgY_aux = 4.0 / YSum_aux;
+            contrast_aux = sqrtf (POW2(dx_aux) + POW2(dy_aux)) * recip_avgY_aux * 0.5;
+          }
+          else
+          {
+            contrast_aux = 0.0;
+          }
+
+          /* computing contrast ratio */                    
+          contrast_offset = (contrast_in + contrast_aux) * scale;
+          contrast_offset = scale;
+          contrast_ratio = (contrast_in + contrast_offset) / (contrast_aux + contrast_offset);
+
+          /* computing luminance ratio */                    
+          if (fabs(mid_ptr_aux[x]) > YMin)
+          {
+            luminance_ratio = mid_ptr_in[x] / mid_ptr_aux[x];
+          }
+          else
+          {
+            luminance_ratio = 0.0;
+          }
+          
+          
+          
+          row_out[(x-1) * 4 + 0] = mid_ptr_in[x];
+          row_out[(x-1) * 4 + 1] = mid_ptr_in[x];
+          row_out[(x-1) * 4 + 2] = mid_ptr_in[x];
+          row_out[(x-1) * 4 + 3] = 1.0; //overwrite alpha
         }
 
-      gegl_buffer_set (output, &out_rect, level, format, row4,
+      gegl_buffer_set (output, &out_rect, level, format, row_out,
                        GEGL_AUTO_ROWSTRIDE);
 
-      tmp_ptr = top_ptr;
-      top_ptr = mid_ptr;
-      mid_ptr = down_ptr;
-      down_ptr = tmp_ptr;
+      tmp_ptr_in = top_ptr_in;
+      top_ptr_in = mid_ptr_in;
+      mid_ptr_in = down_ptr_in;
+      down_ptr_in = tmp_ptr_in;
+
+      tmp_ptr_aux = top_ptr_aux;
+      top_ptr_aux = mid_ptr_aux;
+      mid_ptr_aux = down_ptr_aux;
+      down_ptr_aux = tmp_ptr_aux;
     }
 
-  g_free (row1);
-  g_free (row2);
-  g_free (row3);
-  g_free (row4);
+  g_free (row1_in);
+  g_free (row2_in);
+  g_free (row3_in);
+  g_free (row1_aux);
+  g_free (row2_aux);
+  g_free (row3_aux);
+  g_free (row_out);
+  g_free (in_buf);
+  g_free (aux_buf);
 
   return TRUE;
 }
