@@ -38,12 +38,19 @@ property_enum (technology_chromaticity_compensation, _("Technology Chromaticity 
                GEGL_COLORMAPPER_APPROACH_1)
   description (_("Technology Chromaticity Compensation"))
 
-property_double (scale, _("scale strengh of effect"), 0.05)
+property_double (scale, _("scale strengh of effect"), 1.0)
   description(_("Strength of chromaticity adoption effect."))
   value_range   (0.0, 3.0)
   ui_range      (0.0, 2.0)
-  ui_digits     (5)
-  ui_gamma      (2.0)
+//  ui_digits     (5)
+//  ui_gamma      (2.0)
+
+property_double (symmetry_sat_desat, _("symmetry saturation / desaturation"), 0.5)
+  description(_("0.0 less desaturation, 1.0 more desaturation"))
+  value_range   (0.001, 1.0)
+  ui_range      (0.0, 1.0)
+//  ui_digits     (5)
+//  ui_gamma      (2.0)
   
 #else
 
@@ -132,6 +139,7 @@ color_mapper (GeglBuffer          *input,
               GeglBuffer          *output,
               const GeglRectangle *dst_rect,
               gdouble              scale,
+              gdouble              symmetry_sat_desat,
               GeglColor           *WhiteRepresentation,
               gint                 level)
 
@@ -283,8 +291,8 @@ color_mapper (GeglBuffer          *input,
           }
 
           /* computing contrast ratio */                    
-          contrast_offset = (contrast_in + contrast_aux) * scale;
-          contrast_offset = scale;
+          contrast_offset = (contrast_in * (symmetry_sat_desat) * 2.0 + contrast_aux * (1.0 - symmetry_sat_desat) * 2.0) * scale;
+          // contrast_offset = scale;
           contrast_ratio = (contrast_in + contrast_offset) / (contrast_aux + contrast_offset);
 
           /* computing luminance ratio */                    
@@ -382,7 +390,7 @@ process (GeglOperation       *operation,
   success = color_mapper (input, &compute,
                           aux,
                           output, result,
-                          o->scale, o->WhiteRepresentation,
+                          o->scale, o->symmetry_sat_desat, o->WhiteRepresentation,
                           level);
   return success;
 }
