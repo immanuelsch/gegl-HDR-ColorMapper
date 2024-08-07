@@ -25,9 +25,9 @@
 #ifdef GEGL_PROPERTIES
 
 enum_start (gegl_colormapper_technology)
-   enum_value (GEGL_COLORMAPPER_APPROACH_1, "Approach 1", N_("Approach_1"))
-   enum_value (GEGL_COLORMAPPER_APPROACH_2, "Approach 2", N_("Approach_2"))
-   enum_value (GEGL_COLORMAPPER_APPROACH_3, "Approach 3", N_("Approach_3"))
+   enum_value (GEGL_COLORMAPPER_APPROACH_1, "Approach_N1", N_("Approach_1"))
+   enum_value (GEGL_COLORMAPPER_APPROACH_2, "Approach_N2", N_("Approach_2"))
+   enum_value (GEGL_COLORMAPPER_APPROACH_3, "Approach_N3", N_("Approach_3"))
 enum_end (GeglColorMapperTechology)
 
 property_color (WhiteRepresentation, _("neutral / white representation"), "white")
@@ -38,10 +38,12 @@ property_enum (technology_chromaticity_compensation, _("Technology Chromaticity 
                GEGL_COLORMAPPER_APPROACH_1)
   description (_("Technology Chromaticity Compensation"))
 
-property_double (scale, _("scale strengh of effect"), 1.0)
+property_double (scale, _("scale strengh of effect"), 0.05)
   description(_("Strength of chromaticity adoption effect."))
   value_range   (0.0, 3.0)
   ui_range      (0.0, 2.0)
+  ui_digits     (5)
+  ui_gamma      (2.0)
   
 #else
 
@@ -138,25 +140,30 @@ color_mapper (GeglBuffer          *input,
   const Babl *gray_format = babl_format_with_space ("Y float", space);
   const Babl *format = babl_format_with_space ("RGBA float", space);
 
+  
   /* input grayscale */
   gfloat *row1_in, *row2_in, *row3_in;
-  gfloat *top_ptr_in, *mid_ptr_in, *down_ptr_in, *tmp_ptr_in;
+  gfloat *top_ptr_Yin, *mid_ptr_Yin, *down_ptr_Yin, *tmp_ptr_Yin;
 
   /* aux grayscale */
   gfloat *row1_aux, *row2_aux, *row3_aux;
-  gfloat *top_ptr_aux, *mid_ptr_aux, *down_ptr_aux, *tmp_ptr_aux;
+  gfloat *top_ptr_Yaux, *mid_ptr_Yaux, *down_ptr_Yaux, *tmp_ptr_Yaux;
 
   /* in, aux full buffer */
-  gfloat *in_buf, *aux_buf;
+  gfloat *row_in_buf, *row_aux_buf;
   
   gfloat *row_out;
+  gfloat NeutralRepresentation[4], NeutralRepresentationDesaturated[1], tinted2neutral[3];
   gint    x, y;
 
   GeglRectangle row_rect;
   GeglRectangle out_rect;
 
-  in_buf  = g_new (gfloat, dst_rect->width * dst_rect->height * 4);
-  aux_buf = g_new0 (gfloat, dst_rect->width * dst_rect->height * 4);
+  gegl_color_get_pixel (WhiteRepresentation, format, NeutralRepresentation);
+  gegl_color_get_pixel (WhiteRepresentation, gray_format, NeutralRepresentationDesaturated);
+
+  row_in_buf  = g_new (gfloat, dst_rect->width * 4);
+  row_aux_buf = g_new0 (gfloat, dst_rect->width * 4);
 
   row1_in = g_new (gfloat, src_rect->width);
   row2_in = g_new (gfloat, src_rect->width);
@@ -167,12 +174,12 @@ color_mapper (GeglBuffer          *input,
 
   row_out = g_new0 (gfloat, dst_rect->width * 4);  
   
-  top_ptr_in  = row1_in;
-  mid_ptr_in  = row2_in;
-  down_ptr_in = row3_in;
-  top_ptr_aux  = row1_aux;
-  mid_ptr_aux  = row2_aux;
-  down_ptr_aux = row3_aux;
+  top_ptr_Yin  = row1_in;
+  mid_ptr_Yin  = row2_in;
+  down_ptr_Yin = row3_in;
+  top_ptr_Yaux  = row1_aux;
+  mid_ptr_Yaux  = row2_aux;
+  down_ptr_Yaux = row3_aux;
 
   row_rect.width = src_rect->width;
   row_rect.height = 1;
@@ -183,44 +190,44 @@ color_mapper (GeglBuffer          *input,
   out_rect.width  = dst_rect->width;
   out_rect.height = 1;
 
-  /* fill gegl buffer with colored data of in, aux */
-  gegl_buffer_get (input, dst_rect, 1.0, format, in_buf,
-                   GEGL_AUTO_ROWSTRIDE, GEGL_ABYSS_CLAMP);
-  if (aux)
-    {
-      gegl_buffer_get (aux, dst_rect, 1.0, format, aux_buf,
-                       GEGL_AUTO_ROWSTRIDE, GEGL_ABYSS_CLAMP);
-    }
- 
   /* fill gegl buffer row-wise with grayscale data */  
-  gegl_buffer_get (input, &row_rect, 1.0, gray_format, top_ptr_in,
+  gegl_buffer_get (input, &row_rect, 1.0, gray_format, top_ptr_Yin,
                    GEGL_AUTO_ROWSTRIDE, GEGL_ABYSS_CLAMP);
   if (aux)
     {
-      gegl_buffer_get (aux, &row_rect, 1.0, gray_format, top_ptr_aux,
+      gegl_buffer_get (aux, &row_rect, 1.0, gray_format, top_ptr_Yaux,
                        GEGL_AUTO_ROWSTRIDE, GEGL_ABYSS_CLAMP);
     }
     
   row_rect.y++;
-  gegl_buffer_get (input, &row_rect, 1.0, gray_format, mid_ptr_in,
+  gegl_buffer_get (input, &row_rect, 1.0, gray_format, mid_ptr_Yin,
                    GEGL_AUTO_ROWSTRIDE, GEGL_ABYSS_CLAMP);
   if (aux)
     {
-      gegl_buffer_get (aux, &row_rect, 1.0, gray_format, mid_ptr_aux,
+      gegl_buffer_get (aux, &row_rect, 1.0, gray_format, mid_ptr_Yaux,
                        GEGL_AUTO_ROWSTRIDE, GEGL_ABYSS_CLAMP);
     }
 
+  /* factor to tranform a tinted image to an neutral one */    
+  tinted2neutral[0] = NeutralRepresentationDesaturated[0] / NeutralRepresentation[0];  
+  tinted2neutral[1] = NeutralRepresentationDesaturated[0] / NeutralRepresentation[1];  
+  tinted2neutral[2] = NeutralRepresentationDesaturated[0] / NeutralRepresentation[2];  
+    
   /* loop rows and compute contrast ratio between both input and aux */    
   for (y = dst_rect->y; y < dst_rect->y + dst_rect->height; y++)
     {
       row_rect.y = y + 1;
       out_rect.y = y;
 
-      gegl_buffer_get (input, &row_rect, 1.0, gray_format, down_ptr_in,
+      gegl_buffer_get (input, &row_rect, 1.0, gray_format, down_ptr_Yin,
+                       GEGL_AUTO_ROWSTRIDE, GEGL_ABYSS_CLAMP);
+      gegl_buffer_get (input, &out_rect, 1.0, format, row_in_buf,
                        GEGL_AUTO_ROWSTRIDE, GEGL_ABYSS_CLAMP);
       if (aux)
         {
-          gegl_buffer_get (aux, &row_rect, 1.0, gray_format, down_ptr_aux,
+          gegl_buffer_get (aux, &row_rect, 1.0, gray_format, down_ptr_Yaux,
+                           GEGL_AUTO_ROWSTRIDE, GEGL_ABYSS_CLAMP);
+          gegl_buffer_get (aux, &out_rect, 1.0, format, row_aux_buf,
                            GEGL_AUTO_ROWSTRIDE, GEGL_ABYSS_CLAMP);
         }
 
@@ -229,12 +236,16 @@ color_mapper (GeglBuffer          *input,
           gfloat dx_in, dx_aux;
           gfloat dy_in, dy_aux;
           gfloat contrast_in, contrast_aux, contrast_offset;
+          gfloat luminance_blend[3], luminance_blend_colorscaled[3], tinted_gray[3];
+          gfloat color_extract[3];
           gfloat YMin = 0.0001;
- 
+          gint idx = 0;
           
           /* contrast of input div by aux */
           gfloat contrast_ratio;
           gfloat luminance_ratio;
+          gfloat saturation_clip_negative[3], saturation_clip_positive[3];
+          gfloat saturation_clip_negative_min, saturation_clip_positive_min;
           
           /* sum of CIE Y values of neigbouring pixels */
           gdouble YSum_in, YSum_aux;
@@ -243,12 +254,12 @@ color_mapper (GeglBuffer          *input,
           gdouble recip_avgY_in, recip_avgY_aux;
 
           /* compute dx, dy and YSum for input and aux buffer */          
-          dx_in = (mid_ptr_in[(x-1)] - mid_ptr_in[(x+1)]);
-          dy_in = (top_ptr_in[x] - down_ptr_in[x]);
-          YSum_in = (mid_ptr_in[(x-1)] + mid_ptr_in[(x+1)] + top_ptr_in[x] + down_ptr_in[x]);
-          dx_aux = (mid_ptr_aux[(x-1)] - mid_ptr_aux[(x+1)]);
-          dy_aux = (top_ptr_aux[x] - down_ptr_aux[x]);
-          YSum_aux = (mid_ptr_aux[(x-1)] + mid_ptr_aux[(x+1)] + top_ptr_aux[x] + down_ptr_aux[x]);
+          dx_in = (mid_ptr_Yin[(x-1)] - mid_ptr_Yin[(x+1)]);
+          dy_in = (top_ptr_Yin[x] - down_ptr_Yin[x]);
+          YSum_in = (mid_ptr_Yin[(x-1)] + mid_ptr_Yin[(x+1)] + top_ptr_Yin[x] + down_ptr_Yin[x]);
+          dx_aux = (mid_ptr_Yaux[(x-1)] - mid_ptr_Yaux[(x+1)]);
+          dy_aux = (top_ptr_Yaux[x] - down_ptr_Yaux[x]);
+          YSum_aux = (mid_ptr_Yaux[(x-1)] + mid_ptr_Yaux[(x+1)] + top_ptr_Yaux[x] + down_ptr_Yaux[x]);
 
           
           if (fabs(YSum_in) > YMin)
@@ -277,35 +288,68 @@ color_mapper (GeglBuffer          *input,
           contrast_ratio = (contrast_in + contrast_offset) / (contrast_aux + contrast_offset);
 
           /* computing luminance ratio */                    
-          if (fabs(mid_ptr_aux[x]) > YMin)
+          if (fabs(mid_ptr_Yaux[x]) > YMin)
           {
-            luminance_ratio = mid_ptr_in[x] / mid_ptr_aux[x];
+            luminance_ratio = mid_ptr_Yin[x] / mid_ptr_Yaux[x];
           }
           else
           {
             luminance_ratio = 0.0;
           }
+ 
+          /* compute R (+0), G (+1), B (+2) */
+          idx = (x-1) * 4;
+
+          /* scale exposure (analogue to luminance layer mode) */
+          luminance_blend[0] = luminance_ratio * row_aux_buf[idx + 0];
+          luminance_blend[1] = luminance_ratio * row_aux_buf[idx + 1];
+          luminance_blend[2] = luminance_ratio * row_aux_buf[idx + 2];
+
+          /* grayscale image under current lighting condiditions */
+          tinted_gray[0] = mid_ptr_Yin[x] / tinted2neutral[0];
+          tinted_gray[1] = mid_ptr_Yin[x] / tinted2neutral[1];
+          tinted_gray[2] = mid_ptr_Yin[x] / tinted2neutral[2];
+
+          /* extract color by subtraction (tinted) grayscale image */
+          color_extract[0] = luminance_blend[0] - tinted_gray[0];
+          color_extract[1] = luminance_blend[1] - tinted_gray[1];
+          color_extract[2] = luminance_blend[2] - tinted_gray[2];
+
+          /* add scaled color extract back to grayscale image */
+          luminance_blend_colorscaled[0] = color_extract[0] * contrast_ratio + tinted_gray[0];
+          luminance_blend_colorscaled[1] = color_extract[1] * contrast_ratio + tinted_gray[1];
+          luminance_blend_colorscaled[2] = color_extract[2] * contrast_ratio + tinted_gray[2];
+
+          saturation_clip_negative[0] = tinted_gray[0] / (tinted_gray[0] - fmin ( luminance_blend_colorscaled[0], -0.00001f));
+          saturation_clip_negative[1] = tinted_gray[1] / (tinted_gray[1] - fmin ( luminance_blend_colorscaled[1], -0.00001f));
+          saturation_clip_negative[2] = tinted_gray[2] / (tinted_gray[2] - fmin ( luminance_blend_colorscaled[2], -0.00001f));
+          saturation_clip_negative_min = fmin (saturation_clip_negative[0], fmin (saturation_clip_negative[1], saturation_clip_negative[2]));
+
+          saturation_clip_positive[0] = fmax (luminance_blend_colorscaled[0] - fmax (1.0f, tinted_gray[0]), 0.0f) / (luminance_blend_colorscaled[0] - tinted_gray[0] + 0.00001f);
+          saturation_clip_positive[1] = fmax (luminance_blend_colorscaled[1] - fmax (1.0f, tinted_gray[1]), 0.0f) / (luminance_blend_colorscaled[1] - tinted_gray[1] + 0.00001f);
+          saturation_clip_positive[2] = fmax (luminance_blend_colorscaled[2] - fmax (1.0f, tinted_gray[2]), 0.0f) / (luminance_blend_colorscaled[2] - tinted_gray[2] + 0.00001f);
+          saturation_clip_positive_min = 1.0f - fmax (saturation_clip_positive[0], fmax (saturation_clip_positive[1], saturation_clip_positive[2]));
           
+          row_out[idx + 0] = (luminance_blend_colorscaled[0] - tinted_gray[0]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[0];
+          row_out[idx + 1] = (luminance_blend_colorscaled[1] - tinted_gray[1]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[1];
+          row_out[idx + 2] = (luminance_blend_colorscaled[2] - tinted_gray[2]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[2];
           
-          
-          row_out[(x-1) * 4 + 0] = mid_ptr_in[x];
-          row_out[(x-1) * 4 + 1] = mid_ptr_in[x];
-          row_out[(x-1) * 4 + 2] = mid_ptr_in[x];
-          row_out[(x-1) * 4 + 3] = 1.0; //overwrite alpha
+          /* keep alpha from in */
+          row_out[idx + 3] = row_in_buf[idx + 3];
         }
 
       gegl_buffer_set (output, &out_rect, level, format, row_out,
                        GEGL_AUTO_ROWSTRIDE);
 
-      tmp_ptr_in = top_ptr_in;
-      top_ptr_in = mid_ptr_in;
-      mid_ptr_in = down_ptr_in;
-      down_ptr_in = tmp_ptr_in;
+      tmp_ptr_Yin = top_ptr_Yin;
+      top_ptr_Yin = mid_ptr_Yin;
+      mid_ptr_Yin = down_ptr_Yin;
+      down_ptr_Yin = tmp_ptr_Yin;
 
-      tmp_ptr_aux = top_ptr_aux;
-      top_ptr_aux = mid_ptr_aux;
-      mid_ptr_aux = down_ptr_aux;
-      down_ptr_aux = tmp_ptr_aux;
+      tmp_ptr_Yaux = top_ptr_Yaux;
+      top_ptr_Yaux = mid_ptr_Yaux;
+      mid_ptr_Yaux = down_ptr_Yaux;
+      down_ptr_Yaux = tmp_ptr_Yaux;
     }
 
   g_free (row1_in);
@@ -315,8 +359,8 @@ color_mapper (GeglBuffer          *input,
   g_free (row2_aux);
   g_free (row3_aux);
   g_free (row_out);
-  g_free (in_buf);
-  g_free (aux_buf);
+  g_free (row_in_buf);
+  g_free (row_aux_buf);
 
   return TRUE;
 }
