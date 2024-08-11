@@ -244,17 +244,17 @@ color_mapper (GeglBuffer          *input,
           gfloat dx_in, dx_aux;
           gfloat dy_in, dy_aux;
           gfloat contrast_in, contrast_aux, contrast_offset;
-          gfloat luminance_blend[3], luminance_blend_colorscaled[3], tinted_gray[3];
-          gfloat color_extract[3];
+          gfloat luminanceblended[3], luminanceblended_colorscaled[3], tinted_gray[3];
+          gfloat chroma_blended[3];
           gfloat YMin = 0.0001;
           gint idx = 0;
           
           /* contrast of input div by aux */
-          gfloat contrast_ratio;
+          gfloat contrast_ratio, luminance_gamma;
           gfloat luminance_ratio;
           gfloat saturation_clip_negative[3], saturation_clip_positive[3];
           gfloat saturation_clip_negative_min, saturation_clip_positive_min;
-          gfloat S_HSY;
+          gfloat Chroma_HSY_blended;
           
           /* sum of CIE Y values of neigbouring pixels */
           gdouble YSum_in, YSum_aux;
@@ -295,8 +295,8 @@ color_mapper (GeglBuffer          *input,
           contrast_offset = (contrast_in * (symmetry_sat_desat) * 2.0 + contrast_aux * (1.0 - symmetry_sat_desat) * 2.0) * scale;
           // contrast_offset = scale;
           contrast_ratio = (contrast_in + contrast_offset) / (contrast_aux + contrast_offset);
-//          contrast_ratio = logf (mid_ptr_Yin[x]) / logf (mid_ptr_Yaux[x]);
-          
+          luminance_gamma = logf (mid_ptr_Yin[x]) / logf (mid_ptr_Yaux[x]);
+                    
           /* computing luminance ratio */                    
           if (fabs(mid_ptr_Yaux[x]) > YMin)
           {
@@ -311,9 +311,9 @@ color_mapper (GeglBuffer          *input,
           idx = (x-1) * 4;
 
           /* scale exposure (analogue to luminance layer mode) */
-          luminance_blend[0] = luminance_ratio * row_aux_buf[idx + 0];
-          luminance_blend[1] = luminance_ratio * row_aux_buf[idx + 1];
-          luminance_blend[2] = luminance_ratio * row_aux_buf[idx + 2];
+          luminanceblended[0] = luminance_ratio * row_aux_buf[idx + 0];
+          luminanceblended[1] = luminance_ratio * row_aux_buf[idx + 1];
+          luminanceblended[2] = luminance_ratio * row_aux_buf[idx + 2];
 
           /* grayscale image under current lighting condiditions */
           tinted_gray[0] = mid_ptr_Yin[x] / tinted2neutral[0];
@@ -321,31 +321,35 @@ color_mapper (GeglBuffer          *input,
           tinted_gray[2] = mid_ptr_Yin[x] / tinted2neutral[2];
 
           /* extract color by subtraction (tinted) grayscale image */
-          color_extract[0] = luminance_blend[0] - tinted_gray[0];
-          color_extract[1] = luminance_blend[1] - tinted_gray[1];
-          color_extract[2] = luminance_blend[2] - tinted_gray[2];
+          chroma_blended[0] = luminanceblended[0] - tinted_gray[0];
+          chroma_blended[1] = luminanceblended[1] - tinted_gray[1];
+          chroma_blended[2] = luminanceblended[2] - tinted_gray[2];
 
+          /* chromaticity equivalent in HSY Color Model of in-buffer - before chroma scaling */
+          Chroma_HSY_blended = sqrtf (POW2(chroma_blended[0]) + POW2(chroma_blended[1]) + POW2(chroma_blended[2]) - (chroma_blended[0] * chroma_blended[1] + chroma_blended[0] * chroma_blended[2] + chroma_blended[1] * chroma_blended[2]));
+          /* FIXME: debug - should not be called contrast_ratio and is a dirty hack due to backward culation from target */
+          contrast_ratio = powf((Chroma_HSY_blended / luminance_ratio + mid_ptr_Yaux[x]), (luminance_gamma - 1.0) * scale);
+          
           /* add scaled color extract back to grayscale image */
-          luminance_blend_colorscaled[0] = color_extract[0] * contrast_ratio + tinted_gray[0];
-          luminance_blend_colorscaled[1] = color_extract[1] * contrast_ratio + tinted_gray[1];
-          luminance_blend_colorscaled[2] = color_extract[2] * contrast_ratio + tinted_gray[2];
+          luminanceblended_colorscaled[0] = chroma_blended[0] * contrast_ratio + tinted_gray[0];
+          luminanceblended_colorscaled[1] = chroma_blended[1] * contrast_ratio + tinted_gray[1];
+          luminanceblended_colorscaled[2] = chroma_blended[2] * contrast_ratio + tinted_gray[2];
 
-          saturation_clip_negative[0] = tinted_gray[0] / (tinted_gray[0] - fmin ( luminance_blend_colorscaled[0], -0.00001f));
-          saturation_clip_negative[1] = tinted_gray[1] / (tinted_gray[1] - fmin ( luminance_blend_colorscaled[1], -0.00001f));
-          saturation_clip_negative[2] = tinted_gray[2] / (tinted_gray[2] - fmin ( luminance_blend_colorscaled[2], -0.00001f));
+          saturation_clip_negative[0] = tinted_gray[0] / (tinted_gray[0] - fmin ( luminanceblended_colorscaled[0], -0.00001f));
+          saturation_clip_negative[1] = tinted_gray[1] / (tinted_gray[1] - fmin ( luminanceblended_colorscaled[1], -0.00001f));
+          saturation_clip_negative[2] = tinted_gray[2] / (tinted_gray[2] - fmin ( luminanceblended_colorscaled[2], -0.00001f));
           saturation_clip_negative_min = fmin (saturation_clip_negative[0], fmin (saturation_clip_negative[1], saturation_clip_negative[2]));
 
-          saturation_clip_positive[0] = fmax (luminance_blend_colorscaled[0] - fmax (1.0f, tinted_gray[0]), 0.0f) / (luminance_blend_colorscaled[0] - tinted_gray[0] + 0.00001f);
-          saturation_clip_positive[1] = fmax (luminance_blend_colorscaled[1] - fmax (1.0f, tinted_gray[1]), 0.0f) / (luminance_blend_colorscaled[1] - tinted_gray[1] + 0.00001f);
-          saturation_clip_positive[2] = fmax (luminance_blend_colorscaled[2] - fmax (1.0f, tinted_gray[2]), 0.0f) / (luminance_blend_colorscaled[2] - tinted_gray[2] + 0.00001f);
+          saturation_clip_positive[0] = fmax (luminanceblended_colorscaled[0] - fmax (1.0f, tinted_gray[0]), 0.0f) / (luminanceblended_colorscaled[0] - tinted_gray[0] + 0.00001f);
+          saturation_clip_positive[1] = fmax (luminanceblended_colorscaled[1] - fmax (1.0f, tinted_gray[1]), 0.0f) / (luminanceblended_colorscaled[1] - tinted_gray[1] + 0.00001f);
+          saturation_clip_positive[2] = fmax (luminanceblended_colorscaled[2] - fmax (1.0f, tinted_gray[2]), 0.0f) / (luminanceblended_colorscaled[2] - tinted_gray[2] + 0.00001f);
           saturation_clip_positive_min = 1.0f - fmax (saturation_clip_positive[0], fmax (saturation_clip_positive[1], saturation_clip_positive[2]));
           
-          row_out[idx + 0] = (luminance_blend_colorscaled[0] - tinted_gray[0]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[0];
-          row_out[idx + 1] = (luminance_blend_colorscaled[1] - tinted_gray[1]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[1];
-          row_out[idx + 2] = (luminance_blend_colorscaled[2] - tinted_gray[2]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[2];
+          row_out[idx + 0] = (luminanceblended_colorscaled[0] - tinted_gray[0]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[0];
+          row_out[idx + 1] = (luminanceblended_colorscaled[1] - tinted_gray[1]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[1];
+          row_out[idx + 2] = (luminanceblended_colorscaled[2] - tinted_gray[2]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[2];
           
-          S_HSY = sqrtf (POW2(color_extract[0]) + POW2(color_extract[1]) + POW2(color_extract[2]) - (color_extract[0] * color_extract[1] + color_extract[0] * color_extract[2] + color_extract[1] * color_extract[2]));
-//          row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = S_HSY / mid_ptr_Yin[x];
+//          row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = Chroma_HSY_blended / mid_ptr_Yin[x];
 //          row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = contrast_ratio;
           
           /* keep alpha from in */
