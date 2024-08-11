@@ -254,6 +254,7 @@ color_mapper (GeglBuffer          *input,
           gfloat luminance_ratio;
           gfloat saturation_clip_negative[3], saturation_clip_positive[3];
           gfloat saturation_clip_negative_min, saturation_clip_positive_min;
+          gfloat S_HSY;
           
           /* sum of CIE Y values of neigbouring pixels */
           gdouble YSum_in, YSum_aux;
@@ -294,7 +295,8 @@ color_mapper (GeglBuffer          *input,
           contrast_offset = (contrast_in * (symmetry_sat_desat) * 2.0 + contrast_aux * (1.0 - symmetry_sat_desat) * 2.0) * scale;
           // contrast_offset = scale;
           contrast_ratio = (contrast_in + contrast_offset) / (contrast_aux + contrast_offset);
-
+//          contrast_ratio = logf (mid_ptr_Yin[x]) / logf (mid_ptr_Yaux[x]);
+          
           /* computing luminance ratio */                    
           if (fabs(mid_ptr_Yaux[x]) > YMin)
           {
@@ -341,6 +343,10 @@ color_mapper (GeglBuffer          *input,
           row_out[idx + 0] = (luminance_blend_colorscaled[0] - tinted_gray[0]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[0];
           row_out[idx + 1] = (luminance_blend_colorscaled[1] - tinted_gray[1]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[1];
           row_out[idx + 2] = (luminance_blend_colorscaled[2] - tinted_gray[2]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[2];
+          
+          S_HSY = sqrtf (POW2(color_extract[0]) + POW2(color_extract[1]) + POW2(color_extract[2]) - (color_extract[0] * color_extract[1] + color_extract[0] * color_extract[2] + color_extract[1] * color_extract[2]));
+//          row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = S_HSY / mid_ptr_Yin[x];
+//          row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = contrast_ratio;
           
           /* keep alpha from in */
           row_out[idx + 3] = row_in_buf[idx + 3];
