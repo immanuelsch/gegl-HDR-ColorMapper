@@ -45,14 +45,12 @@ property_double (scale, _("scale strengh of effect"), 0.5)
 //  ui_digits     (5)
 //  ui_gamma      (2.0)
 
-/*  
-property_double (symmetry_sat_desat, _("symmetry saturation / desaturation"), 0.5)
-  description(_("0.0 less desaturation, 1.0 more desaturation"))
-  value_range   (0.001, 1.0)
+property_double (gradient_min, _("low grad"), 0.0)
+  description(_("adoption for low gradients"))
+  value_range   (0.0, 1.0)
   ui_range      (0.0, 1.0)
-//  ui_digits     (6)
+//  ui_digits     (7)
 //  ui_gamma      (2.0)
-*/
 
 #else
 
@@ -142,6 +140,7 @@ color_mapper (GeglBuffer          *input,
               const GeglRectangle *dst_rect,
               gdouble              scale,
               GeglColor           *WhiteRepresentation,
+              gdouble              gradient_min,
               gint                 level)
 
 {
@@ -250,14 +249,13 @@ color_mapper (GeglBuffer          *input,
           gfloat luminanceblended[3], luminanceblended_colorscaled[3], tinted_gray[3], tinted_gray_aux[3];
           gfloat chroma_aux[3];
           gfloat GradientRatio;
-          gfloat YMin = 0.0001;
           gint idx = 0;
           
           /* contrast of input div by aux */
           gfloat luminance_ratio;
           gfloat saturation_clip_negative[3], saturation_clip_positive[3];
           gfloat saturation_clip_negative_min, saturation_clip_positive_min;
-          gfloat Chroma_HSY_blended;
+          gfloat Chroma_HSY_aux;
           gfloat GradientYin, GradientYaux;
           
           /* compute dx, dy and YSum for input and aux buffer */          
@@ -268,17 +266,12 @@ color_mapper (GeglBuffer          *input,
           GradientYin  = 0.5 * sqrtf (POW2(dx_in)  + POW2(dy_in));
           GradientYaux = 0.5 * sqrtf (POW2(dx_aux) + POW2(dy_aux));
           
-          GradientRatio = (GradientYin) / (GradientYaux);
-                              
+          /* computing gradient ratio */
+          GradientRatio = (GradientYaux > FLT_MIN) ? (GradientYin / GradientYaux) : 1.0;
+          GradientRatio = powf (GradientRatio, 1.0 - gradient_min);
+
           /* computing luminance ratio */                    
-          if (fabs(mid_ptr_Yaux[x]) > YMin)
-          {
-            luminance_ratio = mid_ptr_Yin[x] / mid_ptr_Yaux[x];
-          }
-          else
-          {
-            luminance_ratio = 0.0;
-          }
+          luminance_ratio = (fabs(mid_ptr_Yaux[x]) > FLT_MIN) ? (mid_ptr_Yin[x] / mid_ptr_Yaux[x]) : 0.0;
  
           /* compute R (+0), G (+1), B (+2) */
           idx = (x-1) * 4;
@@ -303,7 +296,7 @@ color_mapper (GeglBuffer          *input,
           chroma_aux[2] = row_aux_buf[idx + 2] - tinted_gray_aux[2];
 
           /* chromaticity equivalent in HSY Color Model of in-buffer - before chroma scaling */
-//          Chroma_HSY_blended = sqrtf (POW2(chroma_blended[0]) + POW2(chroma_blended[1]) + POW2(chroma_blended[2]) - (chroma_blended[0] * chroma_blended[1] + chroma_blended[0] * chroma_blended[2] + chroma_blended[1] * chroma_blended[2]));
+          Chroma_HSY_aux = sqrtf (POW2(chroma_aux[0]) + POW2(chroma_aux[1]) + POW2(chroma_aux[2]) - (chroma_aux[0] * chroma_aux[1] + chroma_aux[0] * chroma_aux[2] + chroma_aux[1] * chroma_aux[2]));
           
           /* new algorithm */
           luminanceblended_colorscaled[0] = (tinted_gray[0] + GradientRatio * chroma_aux[0]) * scale + luminanceblended[0] * (1.0 - scale);
@@ -325,11 +318,12 @@ color_mapper (GeglBuffer          *input,
           row_out[idx + 1] = (luminanceblended_colorscaled[1] - tinted_gray[1]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[1];
           row_out[idx + 2] = (luminanceblended_colorscaled[2] - tinted_gray[2]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[2];
           
-//          row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = Chroma_HSY_blended / mid_ptr_Yin[x];
-//          row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = Chroma_HSY_blended;
+//          row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = Chroma_HSY_aux / mid_ptr_Yaux[x];
+//          row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = Chroma_HSY_aux;
 //          row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = contrast_ratio;
 //          row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = GradientRatio;
-          
+//          row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = GradientYaux;
+
           /* keep alpha from in */
           row_out[idx + 3] = row_in_buf[idx + 3];
         }
@@ -378,7 +372,7 @@ process (GeglOperation       *operation,
   success = color_mapper (input, &compute,
                           aux,
                           output, result,
-                          o->scale, o->WhiteRepresentation,
+                          o->scale, o->WhiteRepresentation, o->gradient_min,
                           level);
   return success;
 }
