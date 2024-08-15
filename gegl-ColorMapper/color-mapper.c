@@ -335,15 +335,15 @@ color_mapper (GeglBuffer          *input,
           }
           else if (technology == GEGL_COLORMAPPER_DEFAULT_RGB_UNLIMITED)
           {
-            row_out[idx + 0] = (luminanceblended_colorscaled[0] - tinted_gray[0]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[0];
-            row_out[idx + 1] = (luminanceblended_colorscaled[1] - tinted_gray[1]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[1];
-            row_out[idx + 2] = (luminanceblended_colorscaled[2] - tinted_gray[2]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[2];
-          }
-          else
-          {
             row_out[idx + 0] = luminanceblended_colorscaled[0];
             row_out[idx + 1] = luminanceblended_colorscaled[1];
             row_out[idx + 2] = luminanceblended_colorscaled[2];
+          }
+          else
+          {
+            row_out[idx + 0] = (luminanceblended_colorscaled[0] - tinted_gray[0]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[0];
+            row_out[idx + 1] = (luminanceblended_colorscaled[1] - tinted_gray[1]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[1];
+            row_out[idx + 2] = (luminanceblended_colorscaled[2] - tinted_gray[2]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[2];
           }
 
           /* keep alpha from in */
