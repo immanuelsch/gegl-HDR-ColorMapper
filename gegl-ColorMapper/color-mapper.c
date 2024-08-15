@@ -38,20 +38,22 @@ property_enum (technology_chromaticity_compensation, _("Technology Chromaticity 
                GEGL_COLORMAPPER_APPROACH_1)
   description (_("Technology Chromaticity Compensation"))
 
-property_double (scale, _("scale strengh of effect"), 1.0)
+property_double (scale, _("scale strengh of effect"), 0.5)
   description(_("Strength of chromaticity adoption effect."))
-  value_range   (0.0, 3.0)
-  ui_range      (0.0, 2.0)
+  value_range   (0.0, 1.0)
+  ui_range      (0.0, 1.0)
 //  ui_digits     (5)
 //  ui_gamma      (2.0)
 
+/*  
 property_double (symmetry_sat_desat, _("symmetry saturation / desaturation"), 0.5)
   description(_("0.0 less desaturation, 1.0 more desaturation"))
   value_range   (0.001, 1.0)
   ui_range      (0.0, 1.0)
-//  ui_digits     (5)
+//  ui_digits     (6)
 //  ui_gamma      (2.0)
-  
+*/
+
 #else
 
 #define GEGL_OP_COMPOSER
@@ -139,7 +141,6 @@ color_mapper (GeglBuffer          *input,
               GeglBuffer          *output,
               const GeglRectangle *dst_rect,
               gdouble              scale,
-              gdouble              symmetry_sat_desat,
               GeglColor           *WhiteRepresentation,
               gint                 level)
 
@@ -244,17 +245,19 @@ color_mapper (GeglBuffer          *input,
           gfloat dx_in, dx_aux;
           gfloat dy_in, dy_aux;
           gfloat contrast_in, contrast_aux, contrast_offset;
-          gfloat luminanceblended[3], luminanceblended_colorscaled[3], tinted_gray[3];
-          gfloat chroma_blended[3];
+          gfloat luminanceblended[3], luminanceblended_colorscaled[3], tinted_gray[3], tinted_gray_aux[3];
+          gfloat chroma_blended[3], chroma_aux[3];
+          gfloat GradientRatio;
           gfloat YMin = 0.0001;
           gint idx = 0;
           
           /* contrast of input div by aux */
-          gfloat contrast_ratio, luminance_gamma;
+          gfloat contrast_ratio;
           gfloat luminance_ratio;
           gfloat saturation_clip_negative[3], saturation_clip_positive[3];
           gfloat saturation_clip_negative_min, saturation_clip_positive_min;
           gfloat Chroma_HSY_blended;
+          gfloat GradientYin, GradientYaux;
           
           /* sum of CIE Y values of neigbouring pixels */
           gdouble YSum_in, YSum_aux;
@@ -263,18 +266,20 @@ color_mapper (GeglBuffer          *input,
           gdouble recip_avgY_in, recip_avgY_aux;
 
           /* compute dx, dy and YSum for input and aux buffer */          
-          dx_in = (mid_ptr_Yin[(x-1)] - mid_ptr_Yin[(x+1)]);
-          dy_in = (top_ptr_Yin[x] - down_ptr_Yin[x]);
-          YSum_in = (mid_ptr_Yin[(x-1)] + mid_ptr_Yin[(x+1)] + top_ptr_Yin[x] + down_ptr_Yin[x]);
+          dx_in  = (mid_ptr_Yin[(x-1)]  - mid_ptr_Yin[(x+1)]);
           dx_aux = (mid_ptr_Yaux[(x-1)] - mid_ptr_Yaux[(x+1)]);
+          dy_in  = (top_ptr_Yin[x]  - down_ptr_Yin[x]);
           dy_aux = (top_ptr_Yaux[x] - down_ptr_Yaux[x]);
+          YSum_in  = (mid_ptr_Yin[(x-1)]  + mid_ptr_Yin[(x+1)]  + top_ptr_Yin[x]  + down_ptr_Yin[x]);
           YSum_aux = (mid_ptr_Yaux[(x-1)] + mid_ptr_Yaux[(x+1)] + top_ptr_Yaux[x] + down_ptr_Yaux[x]);
-
+          GradientYin  = 0.5 * sqrtf (POW2(dx_in)  + POW2(dy_in));
+          GradientYaux = 0.5 * sqrtf (POW2(dx_aux) + POW2(dy_aux));
+          recip_avgY_in  = 4.0 / YSum_in;
+          recip_avgY_aux = 4.0 / YSum_aux;
           
           if (fabs(YSum_in) > YMin)
           {
-            recip_avgY_in = 4.0 / YSum_in;
-            contrast_in = sqrtf (POW2(dx_in) + POW2(dy_in)) * recip_avgY_in * 0.5;
+            contrast_in = GradientYin * recip_avgY_in;
           }
           else
           {
@@ -283,19 +288,19 @@ color_mapper (GeglBuffer          *input,
 
           if (fabs(YSum_aux) > YMin)
           {
-            recip_avgY_aux = 4.0 / YSum_aux;
-            contrast_aux = sqrtf (POW2(dx_aux) + POW2(dy_aux)) * recip_avgY_aux * 0.5;
+            contrast_aux = GradientYaux * recip_avgY_aux;
           }
           else
           {
             contrast_aux = 0.0;
           }
 
+          GradientRatio = (GradientYin) / (GradientYaux);
+          
           /* computing contrast ratio */                    
-          contrast_offset = (contrast_in * (symmetry_sat_desat) * 2.0 + contrast_aux * (1.0 - symmetry_sat_desat) * 2.0) * scale;
+          contrast_offset = (contrast_in * (1.0) * 2.0 + contrast_aux * (1.0 - 1.0) * 2.0) * scale;
           // contrast_offset = scale;
           contrast_ratio = (contrast_in + contrast_offset) / (contrast_aux + contrast_offset);
-          luminance_gamma = logf (mid_ptr_Yin[x]) / logf (mid_ptr_Yaux[x]);
                     
           /* computing luminance ratio */                    
           if (fabs(mid_ptr_Yaux[x]) > YMin)
@@ -320,21 +325,33 @@ color_mapper (GeglBuffer          *input,
           tinted_gray[1] = mid_ptr_Yin[x] / tinted2neutral[1];
           tinted_gray[2] = mid_ptr_Yin[x] / tinted2neutral[2];
 
+          /* grayscale image aux under current lighting condiditions */
+          tinted_gray_aux[0] = mid_ptr_Yaux[x] / tinted2neutral[0];
+          tinted_gray_aux[1] = mid_ptr_Yaux[x] / tinted2neutral[1];
+          tinted_gray_aux[2] = mid_ptr_Yaux[x] / tinted2neutral[2];
+
           /* extract color by subtraction (tinted) grayscale image */
           chroma_blended[0] = luminanceblended[0] - tinted_gray[0];
           chroma_blended[1] = luminanceblended[1] - tinted_gray[1];
           chroma_blended[2] = luminanceblended[2] - tinted_gray[2];
 
+          chroma_aux[0] = row_aux_buf[idx + 0] - tinted_gray_aux[0];
+          chroma_aux[1] = row_aux_buf[idx + 1] - tinted_gray_aux[1];
+          chroma_aux[2] = row_aux_buf[idx + 2] - tinted_gray_aux[2];
+
           /* chromaticity equivalent in HSY Color Model of in-buffer - before chroma scaling */
           Chroma_HSY_blended = sqrtf (POW2(chroma_blended[0]) + POW2(chroma_blended[1]) + POW2(chroma_blended[2]) - (chroma_blended[0] * chroma_blended[1] + chroma_blended[0] * chroma_blended[2] + chroma_blended[1] * chroma_blended[2]));
-          /* FIXME: debug - should not be called contrast_ratio and is a dirty hack due to backward culation from target */
-          contrast_ratio = powf((Chroma_HSY_blended / luminance_ratio + mid_ptr_Yaux[x]), (luminance_gamma - 1.0) * scale);
           
           /* add scaled color extract back to grayscale image */
           luminanceblended_colorscaled[0] = chroma_blended[0] * contrast_ratio + tinted_gray[0];
           luminanceblended_colorscaled[1] = chroma_blended[1] * contrast_ratio + tinted_gray[1];
           luminanceblended_colorscaled[2] = chroma_blended[2] * contrast_ratio + tinted_gray[2];
 
+          /* new algorithm */
+          luminanceblended_colorscaled[0] = (tinted_gray[0] + GradientRatio * chroma_aux[0]) * scale + luminanceblended[0] * (1.0 - scale);
+          luminanceblended_colorscaled[1] = (tinted_gray[1] + GradientRatio * chroma_aux[1]) * scale + luminanceblended[1] * (1.0 - scale);
+          luminanceblended_colorscaled[2] = (tinted_gray[2] + GradientRatio * chroma_aux[2]) * scale + luminanceblended[2] * (1.0 - scale);
+          
           saturation_clip_negative[0] = tinted_gray[0] / (tinted_gray[0] - fmin ( luminanceblended_colorscaled[0], -0.00001f));
           saturation_clip_negative[1] = tinted_gray[1] / (tinted_gray[1] - fmin ( luminanceblended_colorscaled[1], -0.00001f));
           saturation_clip_negative[2] = tinted_gray[2] / (tinted_gray[2] - fmin ( luminanceblended_colorscaled[2], -0.00001f));
@@ -350,7 +367,9 @@ color_mapper (GeglBuffer          *input,
           row_out[idx + 2] = (luminanceblended_colorscaled[2] - tinted_gray[2]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[2];
           
 //          row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = Chroma_HSY_blended / mid_ptr_Yin[x];
+//          row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = Chroma_HSY_blended;
 //          row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = contrast_ratio;
+//          row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = GradientRatio;
           
           /* keep alpha from in */
           row_out[idx + 3] = row_in_buf[idx + 3];
@@ -400,7 +419,7 @@ process (GeglOperation       *operation,
   success = color_mapper (input, &compute,
                           aux,
                           output, result,
-                          o->scale, o->symmetry_sat_desat, o->WhiteRepresentation,
+                          o->scale, o->WhiteRepresentation,
                           level);
   return success;
 }
