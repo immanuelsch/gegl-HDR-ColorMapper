@@ -41,19 +41,21 @@ property_enum (technology, _("output mode"),
                GEGL_COLORMAPPER_DEFAULT)
   description (_("Technology Chromaticity Compensation"))
 
-property_double (scale, _("scale strengh of effect"), 0.5)
+property_double (scale, _("scale strengh of effect"), 0.18)
   description(_("Strength of chromaticity adoption effect."))
   value_range   (0.0, 1.0)
   ui_range      (0.0, 1.0)
 //  ui_digits     (5)
 //  ui_gamma      (2.0)
 
+/*
 property_double (gradient_min, _("low grad"), 1.0)
   description(_("adoption for low gradients"))
   value_range   (0.0, 2.0)
   ui_range      (0.0, 2.0)
 //  ui_digits     (7)
 //  ui_gamma      (2.0)
+*/
 
 #else
 
@@ -144,7 +146,6 @@ color_mapper (GeglBuffer          *input,
               GeglColorMapperTechology                technology,
               gdouble              scale,
               GeglColor           *WhiteRepresentation,
-              gdouble              gradient_min,
               gint                 level)
 
 {
@@ -395,7 +396,7 @@ process (GeglOperation       *operation,
                           aux,
                           output, result,
                           o->technology,
-                          o->scale, o->WhiteRepresentation, o->gradient_min,
+                          o->scale, o->WhiteRepresentation,
                           level);
   return success;
 }
