@@ -25,17 +25,20 @@
 #ifdef GEGL_PROPERTIES
 
 enum_start (gegl_colormapper_technology)
-   enum_value (GEGL_COLORMAPPER_APPROACH_1, "Approach_N1", N_("Approach_1"))
-   enum_value (GEGL_COLORMAPPER_APPROACH_2, "Approach_N2", N_("Approach_2"))
-   enum_value (GEGL_COLORMAPPER_APPROACH_3, "Approach_N3", N_("Approach_3"))
+   enum_value (GEGL_COLORMAPPER_DEFAULT, "default", N_("Default"))
+   enum_value (GEGL_COLORMAPPER_DEFAULT_RGB_UNLIMITED, "default rgb unlimited", N_("Default RGB unlimited"))
+   enum_value (GEGL_COLORMAPPER_GRADIENT_RATIO, "gradient_ratio", N_("Gradient Ratio"))
+   enum_value (GEGL_COLORMAPPER_CHROMATICITY, "chromaticity", N_("HSY Chromaticity"))
+   enum_value (GEGL_COLORMAPPER_SATURATION, "saturation", N_("HSY Saturation"))
+   enum_value (GEGL_COLORMAPPER_YGRAD_AUX, "linear aux gradient", N_("Linerar Gradient of aux"))
 enum_end (GeglColorMapperTechology)
 
 property_color (WhiteRepresentation, _("neutral / white representation"), "white")
     description (_("Chose a color that represents white or neutral gray."))
     
-property_enum (technology_chromaticity_compensation, _("Technology Chromaticity Compensation"),
+property_enum (technology, _("output mode"),
                GeglColorMapperTechology, gegl_colormapper_technology,
-               GEGL_COLORMAPPER_APPROACH_1)
+               GEGL_COLORMAPPER_DEFAULT)
   description (_("Technology Chromaticity Compensation"))
 
 property_double (scale, _("scale strengh of effect"), 0.5)
@@ -45,10 +48,10 @@ property_double (scale, _("scale strengh of effect"), 0.5)
 //  ui_digits     (5)
 //  ui_gamma      (2.0)
 
-property_double (gradient_min, _("low grad"), 0.0)
+property_double (gradient_min, _("low grad"), 1.0)
   description(_("adoption for low gradients"))
-  value_range   (0.0, 1.0)
-  ui_range      (0.0, 1.0)
+  value_range   (0.0, 2.0)
+  ui_range      (0.0, 2.0)
 //  ui_digits     (7)
 //  ui_gamma      (2.0)
 
@@ -138,6 +141,7 @@ color_mapper (GeglBuffer          *input,
               GeglBuffer          *aux,
               GeglBuffer          *output,
               const GeglRectangle *dst_rect,
+              GeglColorMapperTechology                technology,
               gdouble              scale,
               GeglColor           *WhiteRepresentation,
               gdouble              gradient_min,
@@ -268,7 +272,6 @@ color_mapper (GeglBuffer          *input,
           
           /* computing gradient ratio */
           GradientRatio = (GradientYaux > FLT_MIN) ? (GradientYin / GradientYaux) : 1.0;
-          GradientRatio = powf (GradientRatio, 1.0 - gradient_min);
 
           /* computing luminance ratio */                    
           luminance_ratio = (fabs(mid_ptr_Yaux[x]) > FLT_MIN) ? (mid_ptr_Yin[x] / mid_ptr_Yaux[x]) : 0.0;
@@ -314,15 +317,34 @@ color_mapper (GeglBuffer          *input,
           saturation_clip_positive[2] = fmax (luminanceblended_colorscaled[2] - fmax (1.0f, tinted_gray[2]), 0.0f) / (luminanceblended_colorscaled[2] - tinted_gray[2] + 0.00001f);
           saturation_clip_positive_min = 1.0f - fmax (saturation_clip_positive[0], fmax (saturation_clip_positive[1], saturation_clip_positive[2]));
           
-          row_out[idx + 0] = (luminanceblended_colorscaled[0] - tinted_gray[0]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[0];
-          row_out[idx + 1] = (luminanceblended_colorscaled[1] - tinted_gray[1]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[1];
-          row_out[idx + 2] = (luminanceblended_colorscaled[2] - tinted_gray[2]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[2];
-          
-//          row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = Chroma_HSY_aux / mid_ptr_Yaux[x];
-//          row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = Chroma_HSY_aux;
-//          row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = contrast_ratio;
-//          row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = GradientRatio;
-//          row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = GradientYaux;
+          if (technology == GEGL_COLORMAPPER_GRADIENT_RATIO)
+          {
+            row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = GradientRatio;
+          }
+          else if (technology == GEGL_COLORMAPPER_CHROMATICITY)
+          {
+            row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = Chroma_HSY_aux;
+          }
+          else if (technology == GEGL_COLORMAPPER_SATURATION)
+          {
+            row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = Chroma_HSY_aux / mid_ptr_Yaux[x];
+          }
+          else if (technology == GEGL_COLORMAPPER_YGRAD_AUX)
+          {
+            row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = GradientYaux;
+          }
+          else if (technology == GEGL_COLORMAPPER_DEFAULT_RGB_UNLIMITED)
+          {
+            row_out[idx + 0] = (luminanceblended_colorscaled[0] - tinted_gray[0]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[0];
+            row_out[idx + 1] = (luminanceblended_colorscaled[1] - tinted_gray[1]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[1];
+            row_out[idx + 2] = (luminanceblended_colorscaled[2] - tinted_gray[2]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[2];
+          }
+          else
+          {
+            row_out[idx + 0] = luminanceblended_colorscaled[0];
+            row_out[idx + 1] = luminanceblended_colorscaled[1];
+            row_out[idx + 2] = luminanceblended_colorscaled[2];
+          }
 
           /* keep alpha from in */
           row_out[idx + 3] = row_in_buf[idx + 3];
@@ -372,6 +394,7 @@ process (GeglOperation       *operation,
   success = color_mapper (input, &compute,
                           aux,
                           output, result,
+                          o->technology,
                           o->scale, o->WhiteRepresentation, o->gradient_min,
                           level);
   return success;
