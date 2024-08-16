@@ -304,7 +304,7 @@ color_mapper (GeglBuffer          *input,
           Chroma_HSY_aux = sqrtf (POW2(chroma_aux[0]) + POW2(chroma_aux[1]) + POW2(chroma_aux[2]) - (chroma_aux[0] * chroma_aux[1] + chroma_aux[0] * chroma_aux[2] + chroma_aux[1] * chroma_aux[2]));
           
           DeltaEScale = (powf (mid_ptr_Yaux[x] * GradientRatio, 1.0 / 2.2) - powf (mid_ptr_Yin[x], 1.0 / 2.2)) / (mid_ptr_Yaux[x] * GradientRatio - mid_ptr_Yin[x]);
-          DeltaEScale = DeltaEScale / (DeltaEScale + 1.0);
+          DeltaEScale = (scale > 0.5) ? DeltaEScale / (DeltaEScale + 1.0) : 0.18;
           
           /* new algorithm */
           luminanceblended_colorscaled[0] = (tinted_gray[0] + GradientRatio * chroma_aux[0]) * DeltaEScale + luminanceblended[0] * (1.0 - DeltaEScale);
