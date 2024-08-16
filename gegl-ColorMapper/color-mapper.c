@@ -254,6 +254,7 @@ color_mapper (GeglBuffer          *input,
           gfloat luminanceblended[3], luminanceblended_colorscaled[3], tinted_gray[3], tinted_gray_aux[3];
           gfloat chroma_aux[3];
           gfloat GradientRatio;
+          gfloat DeltaEScale;
           gint idx = 0;
           
           /* contrast of input div by aux */
@@ -302,10 +303,13 @@ color_mapper (GeglBuffer          *input,
           /* chromaticity equivalent in HSY Color Model of in-buffer - before chroma scaling */
           Chroma_HSY_aux = sqrtf (POW2(chroma_aux[0]) + POW2(chroma_aux[1]) + POW2(chroma_aux[2]) - (chroma_aux[0] * chroma_aux[1] + chroma_aux[0] * chroma_aux[2] + chroma_aux[1] * chroma_aux[2]));
           
+          DeltaEScale = (powf (mid_ptr_Yaux[x] * GradientRatio, 1.0 / 2.2) - powf (mid_ptr_Yin[x], 1.0 / 2.2)) / (mid_ptr_Yaux[x] * GradientRatio - mid_ptr_Yin[x]);
+          DeltaEScale = DeltaEScale / (DeltaEScale + 1.0);
+          
           /* new algorithm */
-          luminanceblended_colorscaled[0] = (tinted_gray[0] + GradientRatio * chroma_aux[0]) * scale + luminanceblended[0] * (1.0 - scale);
-          luminanceblended_colorscaled[1] = (tinted_gray[1] + GradientRatio * chroma_aux[1]) * scale + luminanceblended[1] * (1.0 - scale);
-          luminanceblended_colorscaled[2] = (tinted_gray[2] + GradientRatio * chroma_aux[2]) * scale + luminanceblended[2] * (1.0 - scale);
+          luminanceblended_colorscaled[0] = (tinted_gray[0] + GradientRatio * chroma_aux[0]) * DeltaEScale + luminanceblended[0] * (1.0 - DeltaEScale);
+          luminanceblended_colorscaled[1] = (tinted_gray[1] + GradientRatio * chroma_aux[1]) * DeltaEScale + luminanceblended[1] * (1.0 - DeltaEScale);
+          luminanceblended_colorscaled[2] = (tinted_gray[2] + GradientRatio * chroma_aux[2]) * DeltaEScale + luminanceblended[2] * (1.0 - DeltaEScale);
           
           /* reduce saturation to better fit in rgb-range [0...1] */
           saturation_clip_negative[0] = tinted_gray[0] / (tinted_gray[0] - fmin ( luminanceblended_colorscaled[0], -0.00001f));
