@@ -41,7 +41,7 @@ property_enum (technology, _("output mode"),
                GEGL_COLORMAPPER_DEFAULT)
   description (_("Technology Chromaticity Compensation"))
 
-property_double (scale, _("scale strengh of effect"), 0.18)
+property_double (scale, _("scale strengh of effect"), 1.0)
   description(_("Strength of chromaticity adoption effect."))
   value_range   (0.0, 1.0)
   ui_range      (0.0, 1.0)
@@ -254,7 +254,7 @@ color_mapper (GeglBuffer          *input,
           gfloat luminanceblended[3], luminanceblended_colorscaled[3], tinted_gray[3], tinted_gray_aux[3];
           gfloat chroma_aux[3];
           gfloat GradientRatio;
-          gfloat DeltaEScale;
+          gfloat ChromaAdoptionFactor;
           gint idx = 0;
           
           /* contrast of input div by aux */
@@ -271,13 +271,14 @@ color_mapper (GeglBuffer          *input,
           dy_aux = (top_ptr_Yaux[x] - down_ptr_Yaux[x]);
           GradientYin  = 0.5 * sqrtf (POW2(dx_in)  + POW2(dy_in));
           GradientYaux = 0.5 * sqrtf (POW2(dx_aux) + POW2(dy_aux));
+
+          /* computing luminance ratio */                    
+          luminance_ratio = (fabs(mid_ptr_Yaux[x]) > FLT_MIN) ? (mid_ptr_Yin[x] / mid_ptr_Yaux[x]) : 0.0; 
           
           /* computing gradient ratio */
           GradientRatio = (GradientYaux > FLT_MIN) ? (GradientYin / GradientYaux) : 1.0;
+          ChromaAdoptionFactor = powf (mid_ptr_Yaux[x] * GradientRatio / mid_ptr_Yin[x], 1.0 / 2.2);
 
-          /* computing luminance ratio */                    
-          luminance_ratio = (fabs(mid_ptr_Yaux[x]) > FLT_MIN) ? (mid_ptr_Yin[x] / mid_ptr_Yaux[x]) : 0.0;
- 
           /* compute R (+0), G (+1), B (+2) */
           idx = (x-1) * 4;
 
@@ -302,14 +303,16 @@ color_mapper (GeglBuffer          *input,
 
           /* chromaticity equivalent in HSY Color Model of in-buffer - before chroma scaling */
           Chroma_HSY_aux = sqrtf (POW2(chroma_aux[0]) + POW2(chroma_aux[1]) + POW2(chroma_aux[2]) - (chroma_aux[0] * chroma_aux[1] + chroma_aux[0] * chroma_aux[2] + chroma_aux[1] * chroma_aux[2]));
-          
-          DeltaEScale = (powf (mid_ptr_Yaux[x] * GradientRatio, 1.0 / 2.2) - powf (mid_ptr_Yin[x], 1.0 / 2.2)) / (mid_ptr_Yaux[x] * GradientRatio - mid_ptr_Yin[x]);
-          DeltaEScale = (scale > 0.5) ? DeltaEScale / (DeltaEScale + 1.0) : 0.18;
-          
+                    
           /* new algorithm */
-          luminanceblended_colorscaled[0] = (tinted_gray[0] + GradientRatio * chroma_aux[0]) * DeltaEScale + luminanceblended[0] * (1.0 - DeltaEScale);
-          luminanceblended_colorscaled[1] = (tinted_gray[1] + GradientRatio * chroma_aux[1]) * DeltaEScale + luminanceblended[1] * (1.0 - DeltaEScale);
-          luminanceblended_colorscaled[2] = (tinted_gray[2] + GradientRatio * chroma_aux[2]) * DeltaEScale + luminanceblended[2] * (1.0 - DeltaEScale);
+          // luminanceblended_colorscaled[0] = (tinted_gray[0] + GradientRatio * chroma_aux[0]) * scale + luminanceblended[0] * (1.0 - scale);
+          // luminanceblended_colorscaled[1] = (tinted_gray[1] + GradientRatio * chroma_aux[1]) * scale + luminanceblended[1] * (1.0 - scale);
+          // luminanceblended_colorscaled[2] = (tinted_gray[2] + GradientRatio * chroma_aux[2]) * scale + luminanceblended[2] * (1.0 - scale);
+
+          /* new algorithm perceptual*/
+          luminanceblended_colorscaled[0] = (tinted_gray[0] + luminance_ratio * chroma_aux[0] * ChromaAdoptionFactor) * scale + luminanceblended[0] * (1.0 - scale);
+          luminanceblended_colorscaled[1] = (tinted_gray[1] + luminance_ratio * chroma_aux[1] * ChromaAdoptionFactor) * scale + luminanceblended[1] * (1.0 - scale);
+          luminanceblended_colorscaled[2] = (tinted_gray[2] + luminance_ratio * chroma_aux[2] * ChromaAdoptionFactor) * scale + luminanceblended[2] * (1.0 - scale);
           
           /* reduce saturation to better fit in rgb-range [0...1] */
           saturation_clip_negative[0] = tinted_gray[0] / (tinted_gray[0] - fmin ( luminanceblended_colorscaled[0], -0.00001f));
