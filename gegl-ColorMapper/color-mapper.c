@@ -41,7 +41,7 @@ property_enum (technology, _("output mode"),
                GEGL_COLORMAPPER_DEFAULT)
   description (_("Technology Chromaticity Compensation"))
 
-property_double (scale, _("scale strengh of effect"), 1.0)
+property_double (scale, _("scale strengh of effect"), 0.5)
   description(_("Strength of chromaticity adoption effect."))
   value_range   (0.0, 1.0)
   ui_range      (0.0, 1.0)
