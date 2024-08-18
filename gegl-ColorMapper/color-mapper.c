@@ -48,14 +48,16 @@ property_double (scale, _("scale strengh of effect"), 1.0)
 //  ui_digits     (5)
 //  ui_gamma      (2.0)
 
-/*
-property_double (gradient_min, _("low grad"), 1.0)
-  description(_("adoption for low gradients"))
-  value_range   (0.0, 2.0)
+property_double (globalSaturation, _("global Saturation"), 1.0)
+  description(_("overall saturation whitepoint compensated"))
+  value_range   (0.0, 5.0)
   ui_range      (0.0, 2.0)
 //  ui_digits     (7)
 //  ui_gamma      (2.0)
-*/
+
+property_boolean (perceptual, _("perceptual"), TRUE)
+  description (_("chroma compensation based on perceptual lightness"))
+
 
 #else
 
@@ -138,15 +140,17 @@ get_invalidated_by_change (GeglOperation       *operation,
 
 
 static gboolean
-color_mapper (GeglBuffer          *input,
-              const GeglRectangle *src_rect,
-              GeglBuffer          *aux,
-              GeglBuffer          *output,
-              const GeglRectangle *dst_rect,
-              GeglColorMapperTechology                technology,
-              gdouble              scale,
-              GeglColor           *WhiteRepresentation,
-              gint                 level)
+color_mapper (GeglBuffer                *input,
+              const GeglRectangle       *src_rect,
+              GeglBuffer                *aux,
+              GeglBuffer                *output,
+              const GeglRectangle       *dst_rect,
+              GeglColorMapperTechology  technology,
+              gboolean                  perceptual,
+              gdouble                   scale,
+              GeglColor                 *WhiteRepresentation,
+              gdouble                   globalSaturation,
+              gint                      level)
 
 {
   const Babl *space = gegl_buffer_get_format (output);
@@ -172,8 +176,8 @@ color_mapper (GeglBuffer          *input,
   GeglRectangle row_rect;
   GeglRectangle out_rect;
 
-  gegl_color_get_pixel (WhiteRepresentation, format, NeutralRepresentation);
-  gegl_color_get_pixel (WhiteRepresentation, gray_format, NeutralRepresentationDesaturated);
+  gegl_color_get_pixel (WhiteRepresentation, format, &NeutralRepresentation);
+  gegl_color_get_pixel (WhiteRepresentation, gray_format, &NeutralRepresentationDesaturated);
 
   row_in_buf  = g_new (gfloat, dst_rect->width * 4);
   row_aux_buf = g_new0 (gfloat, dst_rect->width * 4);
@@ -277,7 +281,12 @@ color_mapper (GeglBuffer          *input,
           
           /* computing gradient ratio */
           GradientRatio = (GradientYaux > FLT_MIN) ? (GradientYin / GradientYaux) : 1.0;
-          ChromaAdoptionFactor = powf (mid_ptr_Yaux[x] * GradientRatio / mid_ptr_Yin[x], 1.0 / 2.2);
+
+          if (perceptual == TRUE)
+            ChromaAdoptionFactor = (mid_ptr_Yin[x] > FLT_MIN) ? powf (mid_ptr_Yaux[x] * GradientRatio / mid_ptr_Yin[x], 1.0 / 2.2) : 1.0;
+          else
+            ChromaAdoptionFactor = (mid_ptr_Yin[x] > FLT_MIN) ? mid_ptr_Yaux[x] * GradientRatio / mid_ptr_Yin[x] : 1.0;
+
           ChromaAdoptionFactor = (ChromaAdoptionFactor - 1.0) * scale * 0.5 + 1.0;
 
           /* compute R (+0), G (+1), B (+2) */
@@ -316,9 +325,9 @@ color_mapper (GeglBuffer          *input,
           // luminanceblended_colorscaled[2] = (tinted_gray[2] + luminance_ratio * chroma_aux[2] * ChromaAdoptionFactor) * scale + luminanceblended[2] * (1.0 - scale);
 
           /* new algorithm perceptual - new scaling*/
-          luminanceblended_colorscaled[0] = tinted_gray[0] + luminance_ratio * chroma_aux[0] * ChromaAdoptionFactor;
-          luminanceblended_colorscaled[1] = tinted_gray[1] + luminance_ratio * chroma_aux[1] * ChromaAdoptionFactor;
-          luminanceblended_colorscaled[2] = tinted_gray[2] + luminance_ratio * chroma_aux[2] * ChromaAdoptionFactor;
+          luminanceblended_colorscaled[0] = tinted_gray[0] + luminance_ratio * chroma_aux[0] * ChromaAdoptionFactor * globalSaturation;
+          luminanceblended_colorscaled[1] = tinted_gray[1] + luminance_ratio * chroma_aux[1] * ChromaAdoptionFactor * globalSaturation;
+          luminanceblended_colorscaled[2] = tinted_gray[2] + luminance_ratio * chroma_aux[2] * ChromaAdoptionFactor * globalSaturation;
           
           /* reduce saturation to better fit in rgb-range [0...1] */
           saturation_clip_negative[0] = tinted_gray[0] / (tinted_gray[0] - fmin ( luminanceblended_colorscaled[0], -0.00001f));
@@ -408,8 +417,8 @@ process (GeglOperation       *operation,
   success = color_mapper (input, &compute,
                           aux,
                           output, result,
-                          o->technology,
-                          o->scale, o->WhiteRepresentation,
+                          o->technology, o->perceptual,
+                          o->scale, o->WhiteRepresentation, o->globalSaturation,
                           level);
   return success;
 }
