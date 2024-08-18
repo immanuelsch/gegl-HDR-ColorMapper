@@ -41,10 +41,10 @@ property_enum (technology, _("output mode"),
                GEGL_COLORMAPPER_DEFAULT)
   description (_("Technology Chromaticity Compensation"))
 
-property_double (scale, _("scale strengh of effect"), 0.5)
+property_double (scale, _("scale strengh of effect"), 1.0)
   description(_("Strength of chromaticity adoption effect."))
-  value_range   (0.0, 1.0)
-  ui_range      (0.0, 1.0)
+  value_range   (0.0, 2.0)
+  ui_range      (0.0, 2.0)
 //  ui_digits     (5)
 //  ui_gamma      (2.0)
 
@@ -278,6 +278,7 @@ color_mapper (GeglBuffer          *input,
           /* computing gradient ratio */
           GradientRatio = (GradientYaux > FLT_MIN) ? (GradientYin / GradientYaux) : 1.0;
           ChromaAdoptionFactor = powf (mid_ptr_Yaux[x] * GradientRatio / mid_ptr_Yin[x], 1.0 / 2.2);
+          ChromaAdoptionFactor = (ChromaAdoptionFactor - 1.0) * scale * 0.5 + 1.0;
 
           /* compute R (+0), G (+1), B (+2) */
           idx = (x-1) * 4;
@@ -310,9 +311,14 @@ color_mapper (GeglBuffer          *input,
           // luminanceblended_colorscaled[2] = (tinted_gray[2] + GradientRatio * chroma_aux[2]) * scale + luminanceblended[2] * (1.0 - scale);
 
           /* new algorithm perceptual*/
-          luminanceblended_colorscaled[0] = (tinted_gray[0] + luminance_ratio * chroma_aux[0] * ChromaAdoptionFactor) * scale + luminanceblended[0] * (1.0 - scale);
-          luminanceblended_colorscaled[1] = (tinted_gray[1] + luminance_ratio * chroma_aux[1] * ChromaAdoptionFactor) * scale + luminanceblended[1] * (1.0 - scale);
-          luminanceblended_colorscaled[2] = (tinted_gray[2] + luminance_ratio * chroma_aux[2] * ChromaAdoptionFactor) * scale + luminanceblended[2] * (1.0 - scale);
+          // luminanceblended_colorscaled[0] = (tinted_gray[0] + luminance_ratio * chroma_aux[0] * ChromaAdoptionFactor) * scale + luminanceblended[0] * (1.0 - scale);
+          // luminanceblended_colorscaled[1] = (tinted_gray[1] + luminance_ratio * chroma_aux[1] * ChromaAdoptionFactor) * scale + luminanceblended[1] * (1.0 - scale);
+          // luminanceblended_colorscaled[2] = (tinted_gray[2] + luminance_ratio * chroma_aux[2] * ChromaAdoptionFactor) * scale + luminanceblended[2] * (1.0 - scale);
+
+          /* new algorithm perceptual - new scaling*/
+          luminanceblended_colorscaled[0] = tinted_gray[0] + luminance_ratio * chroma_aux[0] * ChromaAdoptionFactor;
+          luminanceblended_colorscaled[1] = tinted_gray[1] + luminance_ratio * chroma_aux[1] * ChromaAdoptionFactor;
+          luminanceblended_colorscaled[2] = tinted_gray[2] + luminance_ratio * chroma_aux[2] * ChromaAdoptionFactor;
           
           /* reduce saturation to better fit in rgb-range [0...1] */
           saturation_clip_negative[0] = tinted_gray[0] / (tinted_gray[0] - fmin ( luminanceblended_colorscaled[0], -0.00001f));
