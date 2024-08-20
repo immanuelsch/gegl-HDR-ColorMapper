@@ -289,15 +289,8 @@ color_mapper (GeglBuffer                *input,
 
           // ChromaAdoptionFactor = (ChromaAdoptionFactor - 1.0) * scale * 0.5 + 1.0;
 
-          /* change ChromaAdoption to be 1.0 on GradientYin or GradientYaux == 0 or GradientYin == GradientYaux */
-          // ChromaAdoptionFactor = 1.0f - M_PI_2 * powf (GradientRatio, scale * 0.5f) * cosf (M_PI_2 * powf (GradientRatio, scale * 0.5f));
-
-          /* FIXME: limit max ChromaAdption factor <2pi before cos */
-          
-          // ChromaAdoptionFactor = fmin (ChromaAdoptionFactor, powf (4.0f, (1.0f / (0.4f * scale))) );
-          // ChromaAdoptionFactor = 1.0f - M_PI_2 * powf (ChromaAdoptionFactor, scale * 0.4f) * cosf (M_PI_2 * powf (ChromaAdoptionFactor, scale * 0.4f));
-          ChromaAdoptionFactor = 3.0 * M_PI_2 * (1.0 - 1.0 / (0.5 * powf (ChromaAdoptionFactor, scale * 0.6) + 1.0));
-          ChromaAdoptionFactor = 1.0 - ChromaAdoptionFactor * cosf (ChromaAdoptionFactor);
+          ChromaAdoptionFactor = 3.0 * M_PI_2 * (1.0 - 1.0 / (0.5 * powf (ChromaAdoptionFactor, 1.0) + 1.0));
+          ChromaAdoptionFactor = 1.0 - scale * 0.573 * ChromaAdoptionFactor * cosf (ChromaAdoptionFactor);
   
   
           /* compute R (+0), G (+1), B (+2) */
