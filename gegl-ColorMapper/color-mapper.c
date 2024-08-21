@@ -28,7 +28,8 @@ enum_start (gegl_colormapper_technology)
    enum_value (GEGL_COLORMAPPER_DEFAULT, "default", N_("Default"))
    enum_value (GEGL_COLORMAPPER_DEFAULT_RGB_UNLIMITED, "default rgb unlimited", N_("Default RGB unlimited"))
    enum_value (GEGL_COLORMAPPER_GRADIENT_RATIO, "gradient_ratio", N_("Gradient Ratio"))
-   enum_value (GEGL_COLORMAPPER_CHROMA_ADOPTION_FACTOR, "Chroma Adoption", N_("chroma adoption"))
+   enum_value (GEGL_COLORMAPPER_CHROMA_ADOPTION_FACTOR_BASE, "Chroma Adoption Base", N_("chroma adoption base"))
+   enum_value (GEGL_COLORMAPPER_CHROMA_ADOPTION_FACTOR, "Chroma Adoption Factor", N_("chroma adoption factor"))
    enum_value (GEGL_COLORMAPPER_CHROMATICITY, "chromaticity", N_("HSY Chromaticity"))
    enum_value (GEGL_COLORMAPPER_SATURATION, "saturation", N_("HSY Saturation"))
    enum_value (GEGL_COLORMAPPER_YGRAD_AUX, "linear aux gradient", N_("Linerar Gradient of aux"))
@@ -49,15 +50,15 @@ property_double (scale, _("scale strengh of effect"), 1.0)
 //  ui_digits     (5)
 //  ui_gamma      (2.0)
 
-property_double (p_scale, _("power of evalF"), 2.0)
-  description(_("power of evalF."))
+property_double (p_scale, _("exponent WeightingFunction"), 2.0)
+  description(_("exponent of power function (WeightingFunction)."))
   value_range   (0.0, 10.0)
   ui_range      (0.0, 10.0)
 //  ui_digits     (5)
 //  ui_gamma      (2.0)
 
-property_double (m_scale, _("max adoption of evalF"), 0.1)
-  description(_("max adoption of evalF."))
+property_double (m_scale, _("max tuning WeightingFunction"), 0.1)
+  description(_("tune maximum chroma adoption (WeightingFunction)."))
   value_range   (0.0, 1.0)
   ui_range      (0.0, 1.0)
   ui_digits     (5)
@@ -70,7 +71,7 @@ property_double (globalSaturation, _("global Saturation"), 1.0)
 //  ui_digits     (7)
 //  ui_gamma      (2.0)
 
-property_boolean (perceptual, _("perceptual"), TRUE)
+property_boolean (perceptual, _("perceptual chroma adoption"), TRUE)
   description (_("chroma compensation based on perceptual lightness"))
 
 
@@ -275,15 +276,16 @@ color_mapper (GeglBuffer                *input,
           gfloat luminanceblended[3], luminanceblended_colorscaled[3], tinted_gray[3], tinted_gray_aux[3];
           gfloat chroma_aux[3];
           gfloat GradientRatio;
-          gfloat ChromaAdoptionFactor;
+          gfloat ChromaAdoptionFactor, ChromaAdoptionFactor_base;
           gint idx = 0;
           
           /* contrast of input div by aux */
           gfloat luminance_ratio;
           gfloat saturation_clip_negative[3], saturation_clip_positive[3];
-          gfloat saturation_clip_negative_min, saturation_clip_positive_min;
+          gfloat saturation_clip_negative_min, saturation_clip_positive_min, saturation_clip;
           gfloat Chroma_HSY_aux;
           gfloat GradientYin, GradientYaux;
+          gfloat GradientYin_Yaux, GradientYaux_Yin;
           
           /* compute dx, dy and YSum for input and aux buffer */          
           dx_in  = (mid_ptr_Yin[(x-1)]  - mid_ptr_Yin[(x+1)]);
@@ -299,26 +301,45 @@ color_mapper (GeglBuffer                *input,
           /* computing gradient ratio */
           GradientRatio = (GradientYaux > FLT_MIN) ? (GradientYin / GradientYaux) : 1.0;
 
-          if (perceptual == TRUE)
-            ChromaAdoptionFactor = (mid_ptr_Yin[x] > FLT_MIN) ? powf (mid_ptr_Yaux[x] * GradientRatio / mid_ptr_Yin[x], 1.0 / 2.2) : 1.0;
-          else
-            ChromaAdoptionFactor = (mid_ptr_Yin[x] > FLT_MIN) ? mid_ptr_Yaux[x] * GradientRatio / mid_ptr_Yin[x] : 1.0;
-
-          // ChromaAdoptionFactor = (ChromaAdoptionFactor - 1.0) * scale * 0.5 + 1.0;
-
-          // ChromaAdoptionFactor = 3.0 * M_PI_2 * (1.0 - 1.0 / (0.5 * powf (ChromaAdoptionFactor, 1.0) + 1.0));
-          // ChromaAdoptionFactor = 1.0 - scale * 0.573 * ChromaAdoptionFactor * cosf (ChromaAdoptionFactor);
+          GradientYaux_Yin = GradientYaux * mid_ptr_Yin[x];
+          GradientYin_Yaux = GradientYin * mid_ptr_Yaux[x];
           
-          if (ChromaAdoptionFactor > 1.0)
-            ChromaAdoptionFactor = 1.0 + scale * (ChromaAdoptionFactor - 1.0) / (m_scale * powf ((ChromaAdoptionFactor - 1.0), p_scale) + 1.0);
-          else if (ChromaAdoptionFactor < 1.0)
-            if (ChromaAdoptionFactor < FLT_MIN)
+         if (GradientYin_Yaux > GradientYaux_Yin)
+          {
+            ChromaAdoptionFactor_base = (GradientYaux_Yin > FLT_MIN) ? (GradientYin_Yaux / GradientYaux_Yin) : 1.0;
+          }
+          else if (GradientYin_Yaux < GradientYaux_Yin)
+          {
+            ChromaAdoptionFactor_base = (GradientYin_Yaux > FLT_MIN) ? (GradientYaux_Yin / GradientYin_Yaux) : 1.0;
+          }
+          else
+            ChromaAdoptionFactor_base = 1.0;
+          
+          ChromaAdoptionFactor_base = (perceptual == TRUE) ? powf (ChromaAdoptionFactor_base, 1.0 / 2.2) : ChromaAdoptionFactor_base;
+          ChromaAdoptionFactor_base -= 1.0;
+          ChromaAdoptionFactor = 1.0 + scale * ChromaAdoptionFactor_base / (m_scale * powf ((ChromaAdoptionFactor_base), p_scale) + 1.0);
+          ChromaAdoptionFactor = (GradientYin_Yaux < GradientYaux_Yin) ? (1.0 / ChromaAdoptionFactor) : ChromaAdoptionFactor;
+
+          /*
+          if (mid_ptr_Yin[x] > FLT_MIN)
+          {
+            ChromaAdoptionFactor_Lightness = mid_ptr_Yaux[x] * GradientRatio / mid_ptr_Yin[x];
+            ChromaAdoptionFactor_Lightness = (perceptual == TRUE) ? powf (ChromaAdoptionFactor_Lightness, 1.0 / 2.2) : ChromaAdoptionFactor_Lightness;
+          }
+          else
+            ChromaAdoptionFactor_Lightness = 1.0;
+                    
+          if (ChromaAdoptionFactor_Lightness > 1.0)
+            ChromaAdoptionFactor = 1.0 + scale * (ChromaAdoptionFactor_Lightness - 1.0) / (m_scale * powf ((ChromaAdoptionFactor_Lightness - 1.0), p_scale) + 1.0);
+          else if (ChromaAdoptionFactor_Lightness < 1.0)
+            if (ChromaAdoptionFactor_Lightness < FLT_MIN)
               ChromaAdoptionFactor = 1.0;
             else
-              ChromaAdoptionFactor = 1.0 / (1.0 + scale * (1.0 / ChromaAdoptionFactor -1.0) / (m_scale * powf ((1.0 / ChromaAdoptionFactor - 1.0), p_scale) + 1.0));
+              ChromaAdoptionFactor = 1.0 / (1.0 + scale * (1.0 / ChromaAdoptionFactor_Lightness - 1.0) / (m_scale * powf ((1.0 / ChromaAdoptionFactor_Lightness - 1.0), p_scale) + 1.0));
           else
             ChromaAdoptionFactor = 1.0;
-  
+          */
+                    
           /* compute R (+0), G (+1), B (+2) */
           idx = (x-1) * 4;
 
@@ -370,6 +391,8 @@ color_mapper (GeglBuffer                *input,
           saturation_clip_positive[2] = fmax (luminanceblended_colorscaled[2] - fmax (1.0f, tinted_gray[2]), 0.0f) / (luminanceblended_colorscaled[2] - tinted_gray[2] + 0.00001f);
           saturation_clip_positive_min = 1.0f - fmax (saturation_clip_positive[0], fmax (saturation_clip_positive[1], saturation_clip_positive[2]));
           
+          saturation_clip = fmin (saturation_clip_positive_min, saturation_clip_negative_min);
+          
           if (technology == GEGL_COLORMAPPER_GRADIENT_RATIO)
           {
             row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = GradientRatio;
@@ -377,6 +400,10 @@ color_mapper (GeglBuffer                *input,
           else if (technology == GEGL_COLORMAPPER_CHROMATICITY)
           {
             row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = Chroma_HSY_aux;
+          }
+          else if (technology == GEGL_COLORMAPPER_CHROMA_ADOPTION_FACTOR_BASE)
+          {
+            row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = ChromaAdoptionFactor_base;
           }
           else if (technology == GEGL_COLORMAPPER_CHROMA_ADOPTION_FACTOR)
           {
@@ -398,9 +425,9 @@ color_mapper (GeglBuffer                *input,
           }
           else
           {
-            row_out[idx + 0] = (luminanceblended_colorscaled[0] - tinted_gray[0]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[0];
-            row_out[idx + 1] = (luminanceblended_colorscaled[1] - tinted_gray[1]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[1];
-            row_out[idx + 2] = (luminanceblended_colorscaled[2] - tinted_gray[2]) * fmin (saturation_clip_positive_min, saturation_clip_negative_min) + tinted_gray[2];
+            row_out[idx + 0] = (luminanceblended_colorscaled[0] - tinted_gray[0]) * saturation_clip + tinted_gray[0];
+            row_out[idx + 1] = (luminanceblended_colorscaled[1] - tinted_gray[1]) * saturation_clip + tinted_gray[1];
+            row_out[idx + 2] = (luminanceblended_colorscaled[2] - tinted_gray[2]) * saturation_clip + tinted_gray[2];
           }
 
           /* keep alpha from in */
