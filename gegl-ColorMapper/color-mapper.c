@@ -28,6 +28,7 @@ enum_start (gegl_colormapper_technology)
    enum_value (GEGL_COLORMAPPER_DEFAULT, "default", N_("Default"))
    enum_value (GEGL_COLORMAPPER_DEFAULT_RGB_UNLIMITED, "default rgb unlimited", N_("Default RGB unlimited"))
    enum_value (GEGL_COLORMAPPER_GRADIENT_RATIO, "gradient_ratio", N_("Gradient Ratio"))
+   enum_value (GEGL_COLORMAPPER_CHROMA_ADOPTION_FACTOR, "Chroma Adoption", N_("chroma adoption"))
    enum_value (GEGL_COLORMAPPER_CHROMATICITY, "chromaticity", N_("HSY Chromaticity"))
    enum_value (GEGL_COLORMAPPER_SATURATION, "saturation", N_("HSY Saturation"))
    enum_value (GEGL_COLORMAPPER_YGRAD_AUX, "linear aux gradient", N_("Linerar Gradient of aux"))
@@ -47,6 +48,20 @@ property_double (scale, _("scale strengh of effect"), 1.0)
   ui_range      (0.0, 2.0)
 //  ui_digits     (5)
 //  ui_gamma      (2.0)
+
+property_double (p_scale, _("power of evalF"), 2.0)
+  description(_("power of evalF."))
+  value_range   (0.0, 10.0)
+  ui_range      (0.0, 10.0)
+//  ui_digits     (5)
+//  ui_gamma      (2.0)
+
+property_double (m_scale, _("max adoption of evalF"), 0.1)
+  description(_("max adoption of evalF."))
+  value_range   (0.0, 1.0)
+  ui_range      (0.0, 1.0)
+  ui_digits     (5)
+  ui_gamma      (2.0)
 
 property_double (globalSaturation, _("global Saturation"), 1.0)
   description(_("overall saturation whitepoint compensated"))
@@ -148,6 +163,8 @@ color_mapper (GeglBuffer                *input,
               GeglColorMapperTechology  technology,
               gboolean                  perceptual,
               gdouble                   scale,
+              gdouble                   p_scale,
+              gdouble                   m_scale,
               GeglColor                 *WhiteRepresentation,
               gdouble                   globalSaturation,
               gint                      level)
@@ -289,9 +306,18 @@ color_mapper (GeglBuffer                *input,
 
           // ChromaAdoptionFactor = (ChromaAdoptionFactor - 1.0) * scale * 0.5 + 1.0;
 
-          ChromaAdoptionFactor = 3.0 * M_PI_2 * (1.0 - 1.0 / (0.5 * powf (ChromaAdoptionFactor, 1.0) + 1.0));
-          ChromaAdoptionFactor = 1.0 - scale * 0.573 * ChromaAdoptionFactor * cosf (ChromaAdoptionFactor);
-  
+          // ChromaAdoptionFactor = 3.0 * M_PI_2 * (1.0 - 1.0 / (0.5 * powf (ChromaAdoptionFactor, 1.0) + 1.0));
+          // ChromaAdoptionFactor = 1.0 - scale * 0.573 * ChromaAdoptionFactor * cosf (ChromaAdoptionFactor);
+          
+          if (ChromaAdoptionFactor > 1.0)
+            ChromaAdoptionFactor = 1.0 + scale * (ChromaAdoptionFactor - 1.0) / (m_scale * powf ((ChromaAdoptionFactor - 1.0), p_scale) + 1.0);
+          else if (ChromaAdoptionFactor < 1.0)
+            if (ChromaAdoptionFactor < FLT_MIN)
+              ChromaAdoptionFactor = 1.0;
+            else
+              ChromaAdoptionFactor = 1.0 / (1.0 + scale * (1.0 / ChromaAdoptionFactor -1.0) / (m_scale * powf ((1.0 / ChromaAdoptionFactor - 1.0), p_scale) + 1.0));
+          else
+            ChromaAdoptionFactor = 1.0;
   
           /* compute R (+0), G (+1), B (+2) */
           idx = (x-1) * 4;
@@ -351,6 +377,10 @@ color_mapper (GeglBuffer                *input,
           else if (technology == GEGL_COLORMAPPER_CHROMATICITY)
           {
             row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = Chroma_HSY_aux;
+          }
+          else if (technology == GEGL_COLORMAPPER_CHROMA_ADOPTION_FACTOR)
+          {
+            row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = ChromaAdoptionFactor;
           }
           else if (technology == GEGL_COLORMAPPER_SATURATION)
           {
@@ -422,7 +452,7 @@ process (GeglOperation       *operation,
                           aux,
                           output, result,
                           o->technology, o->perceptual,
-                          o->scale, o->WhiteRepresentation, o->globalSaturation,
+                          o->scale, o->p_scale, o->m_scale, o->WhiteRepresentation, o->globalSaturation,
                           level);
   return success;
 }
