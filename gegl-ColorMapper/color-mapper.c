@@ -50,17 +50,17 @@ property_double (scale, _("scale strengh of effect"), 1.0)
 //  ui_digits     (5)
 //  ui_gamma      (2.0)
 
-property_double (p_scale, _("exponent WeightingFunction"), 2.0)
+property_double (p_scale, _("exponent WeightingFunction"), M_E)
   description(_("exponent of power function (WeightingFunction)."))
   value_range   (0.0, 10.0)
   ui_range      (0.0, 10.0)
 //  ui_digits     (5)
 //  ui_gamma      (2.0)
 
-property_double (m_scale, _("max tuning WeightingFunction"), 0.25)
+property_double (m_scale, _("max tuning WeightingFunction"), 1.0)
   description(_("tune maximum chroma adoption (WeightingFunction)."))
-  value_range   (0.0, 10.0)
-  ui_range      (0.0, 10.0)
+  value_range   (0.0, 100.0)
+  ui_range      (0.0, 100.0)
   ui_digits     (2)
   ui_gamma      (2.0)
 
@@ -306,18 +306,19 @@ color_mapper (GeglBuffer                *input,
           
          if (GradientYin_Yaux > GradientYaux_Yin)
           {
-            ChromaAdoptionFactor_base = (GradientYaux_Yin > FLT_MIN) ? (GradientYin_Yaux / GradientYaux_Yin) : 1.0;
+            ChromaAdoptionFactor_base = (GradientYaux_Yin > FLT_MIN) ? (GradientYin_Yaux / GradientYaux_Yin) : 1000.0;
           }
           else if (GradientYin_Yaux < GradientYaux_Yin)
           {
-            ChromaAdoptionFactor_base = (GradientYin_Yaux > FLT_MIN) ? (GradientYaux_Yin / GradientYin_Yaux) : 1.0;
+            ChromaAdoptionFactor_base = (GradientYin_Yaux > FLT_MIN) ? (GradientYaux_Yin / GradientYin_Yaux) : 1000.0;
           }
           else
             ChromaAdoptionFactor_base = 1.0;
           
           ChromaAdoptionFactor_base = (perceptual == TRUE) ? powf (ChromaAdoptionFactor_base, 1.0 / 2.2) : ChromaAdoptionFactor_base;
           ChromaAdoptionFactor_base -= 1.0;
-          ChromaAdoptionFactor = 1.0 + scale * ChromaAdoptionFactor_base / (m_scale * powf ((ChromaAdoptionFactor_base), p_scale) + 1.0);
+//          ChromaAdoptionFactor = 1.0 + scale * ChromaAdoptionFactor_base / (m_scale * powf ((ChromaAdoptionFactor_base), p_scale) + 1.0);
+          ChromaAdoptionFactor = 1.0 + m_scale * (1.0 - powf (p_scale, - (scale / m_scale * ChromaAdoptionFactor_base)));
           ChromaAdoptionFactor = (GradientYin_Yaux < GradientYaux_Yin) ? (1.0 / ChromaAdoptionFactor) : ChromaAdoptionFactor;
 
           /*
