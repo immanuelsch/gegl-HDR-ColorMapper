@@ -47,7 +47,7 @@ property_double (scale, _("scale strengh of effect"), 1.0)
   description(_("Strength of chromaticity adoption effect."))
   value_range   (0.0, 2.0)
   ui_range      (0.0, 2.0)
-//  ui_digits     (5)
+  ui_digits     (5)
 //  ui_gamma      (2.0)
 
 property_double (p_scale, _("exponent WeightingFunction"), M_E)
@@ -59,8 +59,8 @@ property_double (p_scale, _("exponent WeightingFunction"), M_E)
 
 property_double (m_scale, _("max tuning WeightingFunction"), 1.0)
   description(_("tune maximum chroma adoption (WeightingFunction)."))
-  value_range   (0.0, 100.0)
-  ui_range      (0.0, 100.0)
+  value_range   (0.0, 1000.0)
+  ui_range      (0.0, 10.0)
   ui_digits     (2)
   ui_gamma      (2.0)
 
@@ -71,7 +71,7 @@ property_double (globalSaturation, _("global Saturation"), 1.0)
 //  ui_digits     (7)
 //  ui_gamma      (2.0)
 
-property_boolean (perceptual, _("perceptual chroma adoption"), TRUE)
+property_boolean (perceptual, _("perceptual chroma adoption"), FALSE)
   description (_("chroma compensation based on perceptual lightness"))
 
 
@@ -296,30 +296,43 @@ color_mapper (GeglBuffer                *input,
           GradientYaux = 0.5 * sqrtf (POW2(dx_aux) + POW2(dy_aux));
 
           /* computing luminance ratio */                    
-          luminance_ratio = (fabs(mid_ptr_Yaux[x]) > FLT_MIN) ? (mid_ptr_Yin[x] / mid_ptr_Yaux[x]) : 0.0; 
+          // luminance_ratio = (fabs(mid_ptr_Yaux[x]) > FLT_MIN) ? (mid_ptr_Yin[x] / mid_ptr_Yaux[x]) : 1000.0;
+          luminance_ratio = mid_ptr_Yin[x] / fmax (FLT_MIN, mid_ptr_Yaux[x]);
           
           /* computing gradient ratio */
-          GradientRatio = (GradientYaux > FLT_MIN) ? (GradientYin / GradientYaux) : 1.0;
-
+          // GradientRatio = (GradientYaux > FLT_MIN) ? (GradientYin / GradientYaux) : 1000.0;
+          GradientRatio = GradientYin / fmax (FLT_MIN, GradientYaux);
+          
+          /* ChromaAdoptionFactor_base (ratio of gradient-scaled luminance vs. luminance_in) */
+          // ChromaAdoptionFactor_base = (mid_ptr_Yin[x]) > FLT_MIN) ? (mid_ptr_Yaux[x] * GradientRatio / mid_ptr_Yin[x]) : 1000.0;
+          // ChromaAdoptionFactor_base = mid_ptr_Yaux[x] * GradientYin / GradientYaux / mid_ptr_Yin[x];
+          
           GradientYaux_Yin = GradientYaux * mid_ptr_Yin[x];
           GradientYin_Yaux = GradientYin * mid_ptr_Yaux[x];
           
-         if (GradientYin_Yaux > GradientYaux_Yin)
-          {
-            ChromaAdoptionFactor_base = (GradientYaux_Yin > FLT_MIN) ? (GradientYin_Yaux / GradientYaux_Yin) : 1000.0;
-          }
-          else if (GradientYin_Yaux < GradientYaux_Yin)
-          {
-            ChromaAdoptionFactor_base = (GradientYin_Yaux > FLT_MIN) ? (GradientYaux_Yin / GradientYin_Yaux) : 1000.0;
-          }
+          if (GradientYin_Yaux > GradientYaux_Yin)
+            {
+              ChromaAdoptionFactor_base = GradientYaux_Yin / GradientYin_Yaux;
+            }
+          else if (GradientYaux_Yin > GradientYin_Yaux)
+            {
+              ChromaAdoptionFactor_base = GradientYin_Yaux / GradientYaux_Yin;
+            }
           else
             ChromaAdoptionFactor_base = 1.0;
-          
+                    
+          // ChromaAdoptionFactor_base = 1.0 / fmax (FLT_MIN, ChromaAdoptionFactor_base);
+
           ChromaAdoptionFactor_base = (perceptual == TRUE) ? powf (ChromaAdoptionFactor_base, 1.0 / 2.2) : ChromaAdoptionFactor_base;
           ChromaAdoptionFactor_base -= 1.0;
 //          ChromaAdoptionFactor = 1.0 + scale * ChromaAdoptionFactor_base / (m_scale * powf ((ChromaAdoptionFactor_base), p_scale) + 1.0);
-          ChromaAdoptionFactor = 1.0 + m_scale * (1.0 - powf (p_scale, - (scale / m_scale * ChromaAdoptionFactor_base)));
-          ChromaAdoptionFactor = (GradientYin_Yaux < GradientYaux_Yin) ? (1.0 / ChromaAdoptionFactor) : ChromaAdoptionFactor;
+          
+          // ChromaAdoptionFactor = 1.0 + m_scale * (1.0 - powf (p_scale, - (scale / m_scale * ChromaAdoptionFactor_base)));
+          ChromaAdoptionFactor = 1.0 + scale * 0.5 * ChromaAdoptionFactor_base;
+          if (ChromaAdoptionFactor > FLT_MIN)
+            ChromaAdoptionFactor = (GradientYin_Yaux > GradientYaux_Yin) ? (1.0 / ChromaAdoptionFactor) : ChromaAdoptionFactor;
+          else
+            ChromaAdoptionFactor = 1.0;
 
           /*
           if (mid_ptr_Yin[x] > FLT_MIN)
