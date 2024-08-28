@@ -27,7 +27,7 @@
 enum_start (gegl_colormapper_technology)
    enum_value (GEGL_COLORMAPPER_DEFAULT, "default", N_("Default"))
    enum_value (GEGL_COLORMAPPER_DEFAULT_RGB_UNLIMITED, "default rgb unlimited", N_("Default RGB unlimited"))
-   enum_value (GEGL_COLORMAPPER_GRADIENT_RATIO, "gradient_ratio", N_("Gradient Ratio"))
+   enum_value (GEGL_COLORMAPPER_GRADIENT_RATIO, "gradient_ratio", N_("DEBUG: Gradient Ratio"))
    enum_value (GEGL_COLORMAPPER_CHROMA_ADOPTION_FACTOR_BASE, "Chroma Adoption Base", N_("chroma adoption base"))
    enum_value (GEGL_COLORMAPPER_CHROMA_ADOPTION_FACTOR, "Chroma Adoption Factor", N_("chroma adoption factor"))
    enum_value (GEGL_COLORMAPPER_CHROMATICITY, "chromaticity", N_("HSY Chromaticity"))
@@ -43,11 +43,11 @@ property_enum (technology, _("output mode"),
                GEGL_COLORMAPPER_DEFAULT)
   description (_("Technology Chromaticity Compensation"))
 
-property_double (scale, _("scale strengh of effect"), 1.0)
-  description(_("Strength of chromaticity adoption effect."))
-  value_range   (0.0, 2.0)
-  ui_range      (0.0, 2.0)
-  ui_digits     (5)
+property_double (scale, _("scale strengh of effect"), 0.5)
+  description(_("Strength of chromaticity adoption effect. (1.0 means, no chroma remains, when reducing lightness contrast to zero."))
+  value_range   (0.0, 1.0)
+  ui_range      (0.3, 0.7)
+//  ui_digits     (5)
 //  ui_gamma      (2.0)
 
 property_double (p_scale, _("exponent WeightingFunction"), M_E)
@@ -328,7 +328,7 @@ color_mapper (GeglBuffer                *input,
 //          ChromaAdoptionFactor = 1.0 + scale * ChromaAdoptionFactor_base / (m_scale * powf ((ChromaAdoptionFactor_base), p_scale) + 1.0);
           
           // ChromaAdoptionFactor = 1.0 + m_scale * (1.0 - powf (p_scale, - (scale / m_scale * ChromaAdoptionFactor_base)));
-          ChromaAdoptionFactor = 1.0 + scale * 0.5 * ChromaAdoptionFactor_base;
+          ChromaAdoptionFactor = 1.0 + scale * ChromaAdoptionFactor_base;
           if (ChromaAdoptionFactor > FLT_MIN)
             ChromaAdoptionFactor = (GradientYin_Yaux > GradientYaux_Yin) ? (1.0 / ChromaAdoptionFactor) : ChromaAdoptionFactor;
           else
