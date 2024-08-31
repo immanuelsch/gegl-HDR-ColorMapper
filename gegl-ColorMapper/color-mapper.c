@@ -44,25 +44,25 @@ property_enum (technology, _("output mode"),
   description (_("Technology Chromaticity Compensation"))
 
 property_double (scale, _("scale strengh of effect"), 0.5)
-  description(_("Strength of chromaticity adoption effect. (1.0 means, no chroma remains, when reducing lightness contrast to zero."))
+  description(_("Strength of chromaticity adoption effect. (1.0 means, no chroma remains, when reducing lightness contrast to zero. (equivalent to RGB curves)"))
   value_range   (0.0, 1.0)
   ui_range      (0.3, 0.7)
 //  ui_digits     (5)
 //  ui_gamma      (2.0)
 
-property_double (p_scale, _("exponent WeightingFunction"), M_E)
-  description(_("exponent of power function (WeightingFunction)."))
-  value_range   (0.0, 10.0)
-  ui_range      (0.0, 10.0)
+property_double (saturation_min, _("deadzone for saturation"), 0.0)
+  description(_("use for fuzzy whitepoint / multi-lighting"))
+  value_range   (0.0, 2.0)
+  ui_range      (0.0, 2.0)
 //  ui_digits     (5)
-//  ui_gamma      (2.0)
-
-property_double (m_scale, _("max tuning WeightingFunction"), 1.0)
-  description(_("tune maximum chroma adoption (WeightingFunction)."))
-  value_range   (0.0, 1000.0)
-  ui_range      (0.0, 10.0)
-  ui_digits     (2)
   ui_gamma      (2.0)
+
+property_double (saturation_weighting_factor, _("weighting factor for saturation"), 0.0)
+  description(_("fade in effect over saturation"))
+  value_range   (0.0, 1.0)
+  ui_range      (0.0, 1.0)
+//  ui_digits     (2)
+//  ui_gamma      (2.0)
 
 property_double (globalSaturation, _("global Saturation"), 1.0)
   description(_("overall saturation whitepoint compensated"))
@@ -164,8 +164,8 @@ color_mapper (GeglBuffer                *input,
               GeglColorMapperTechology  technology,
               gboolean                  perceptual,
               gdouble                   scale,
-              gdouble                   p_scale,
-              gdouble                   m_scale,
+              gdouble                   saturation_min,
+              gdouble                   saturation_weighting_factor,
               GeglColor                 *WhiteRepresentation,
               gdouble                   globalSaturation,
               gint                      level)
@@ -276,16 +276,17 @@ color_mapper (GeglBuffer                *input,
           gfloat luminanceblended[3], luminanceblended_colorscaled[3], tinted_gray[3], tinted_gray_aux[3];
           gfloat chroma_aux[3];
           gfloat GradientRatio;
-          gfloat ChromaAdoptionFactor, ChromaAdoptionFactor_base;
+          gfloat ChromaAdoptionFactor, ChromaAdoptionFactor_base, ChromaAdoptionFactor_sat_dz, ChromaAdoptionFactor_global;
           gint idx = 0;
           
           /* contrast of input div by aux */
           gfloat luminance_ratio;
           gfloat saturation_clip_negative[3], saturation_clip_positive[3];
           gfloat saturation_clip_negative_min, saturation_clip_positive_min, saturation_clip;
-          gfloat Chroma_HSY_aux;
+          gfloat Chroma_HSY_aux, Saturation_HSY_aux, Saturation_HSY_aux_dz;
           gfloat GradientYin, GradientYaux;
           gfloat GradientYin_Yaux, GradientYaux_Yin;
+          gfloat chromafactor_aux2target;
           
           /* compute dx, dy and YSum for input and aux buffer */          
           dx_in  = (mid_ptr_Yin[(x-1)]  - mid_ptr_Yin[(x+1)]);
@@ -325,14 +326,6 @@ color_mapper (GeglBuffer                *input,
 
           ChromaAdoptionFactor_base = (perceptual == TRUE) ? powf (ChromaAdoptionFactor_base, 1.0 / 2.2) : ChromaAdoptionFactor_base;
           ChromaAdoptionFactor_base -= 1.0;
-//          ChromaAdoptionFactor = 1.0 + scale * ChromaAdoptionFactor_base / (m_scale * powf ((ChromaAdoptionFactor_base), p_scale) + 1.0);
-          
-          // ChromaAdoptionFactor = 1.0 + m_scale * (1.0 - powf (p_scale, - (scale / m_scale * ChromaAdoptionFactor_base)));
-          ChromaAdoptionFactor = 1.0 + scale * ChromaAdoptionFactor_base;
-          if (ChromaAdoptionFactor > FLT_MIN)
-            ChromaAdoptionFactor = (GradientYin_Yaux > GradientYaux_Yin) ? (1.0 / ChromaAdoptionFactor) : ChromaAdoptionFactor;
-          else
-            ChromaAdoptionFactor = 1.0;
 
           /*
           if (mid_ptr_Yin[x] > FLT_MIN)
@@ -378,7 +371,20 @@ color_mapper (GeglBuffer                *input,
 
           /* chromaticity equivalent in HSY Color Model of in-buffer - before chroma scaling */
           Chroma_HSY_aux = sqrtf (POW2(chroma_aux[0]) + POW2(chroma_aux[1]) + POW2(chroma_aux[2]) - (chroma_aux[0] * chroma_aux[1] + chroma_aux[0] * chroma_aux[2] + chroma_aux[1] * chroma_aux[2]));
-                    
+          Saturation_HSY_aux = (mid_ptr_Yaux[x] > FLT_MIN) ? (Chroma_HSY_aux / mid_ptr_Yaux[x]) : 0.0;
+          Saturation_HSY_aux_dz = fmax (Saturation_HSY_aux - saturation_min, 0.0);
+          ChromaAdoptionFactor_sat_dz = (Saturation_HSY_aux > FLT_MIN) ? (Saturation_HSY_aux_dz / Saturation_HSY_aux) : 0.0;
+
+          ChromaAdoptionFactor = 1.0 + scale * ChromaAdoptionFactor_base;
+
+          if (ChromaAdoptionFactor > FLT_MIN)
+            ChromaAdoptionFactor = (GradientYin_Yaux > GradientYaux_Yin) ? (1.0 / ChromaAdoptionFactor) : ChromaAdoptionFactor;
+          else
+            ChromaAdoptionFactor = 1.0;
+
+          ChromaAdoptionFactor_global = ChromaAdoptionFactor * globalSaturation;
+          ChromaAdoptionFactor_global = 1.0 + (ChromaAdoptionFactor_global - 1.0 ) * (saturation_weighting_factor * (Saturation_HSY_aux - 1.0) + 1.0) * ChromaAdoptionFactor_sat_dz;
+
           /* new algorithm */
           // luminanceblended_colorscaled[0] = (tinted_gray[0] + GradientRatio * chroma_aux[0]) * scale + luminanceblended[0] * (1.0 - scale);
           // luminanceblended_colorscaled[1] = (tinted_gray[1] + GradientRatio * chroma_aux[1]) * scale + luminanceblended[1] * (1.0 - scale);
@@ -390,9 +396,10 @@ color_mapper (GeglBuffer                *input,
           // luminanceblended_colorscaled[2] = (tinted_gray[2] + luminance_ratio * chroma_aux[2] * ChromaAdoptionFactor) * scale + luminanceblended[2] * (1.0 - scale);
 
           /* new algorithm perceptual - new scaling*/
-          luminanceblended_colorscaled[0] = tinted_gray[0] + luminance_ratio * chroma_aux[0] * ChromaAdoptionFactor * globalSaturation;
-          luminanceblended_colorscaled[1] = tinted_gray[1] + luminance_ratio * chroma_aux[1] * ChromaAdoptionFactor * globalSaturation;
-          luminanceblended_colorscaled[2] = tinted_gray[2] + luminance_ratio * chroma_aux[2] * ChromaAdoptionFactor * globalSaturation;
+          chromafactor_aux2target = luminance_ratio * ChromaAdoptionFactor_global;
+          luminanceblended_colorscaled[0] = tinted_gray[0] + chroma_aux[0] * chromafactor_aux2target;
+          luminanceblended_colorscaled[1] = tinted_gray[1] + chroma_aux[1] * chromafactor_aux2target;
+          luminanceblended_colorscaled[2] = tinted_gray[2] + chroma_aux[2] * chromafactor_aux2target;
           
           /* reduce saturation to better fit in rgb-range [0...1] */
           saturation_clip_negative[0] = tinted_gray[0] / (tinted_gray[0] - fmin ( luminanceblended_colorscaled[0], -0.00001f));
@@ -425,7 +432,7 @@ color_mapper (GeglBuffer                *input,
           }
           else if (technology == GEGL_COLORMAPPER_SATURATION)
           {
-            row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = Chroma_HSY_aux / mid_ptr_Yaux[x];
+            row_out[idx + 0] = row_out[idx + 1] = row_out[idx + 2] = Saturation_HSY_aux;
           }
           else if (technology == GEGL_COLORMAPPER_YGRAD_AUX)
           {
@@ -493,7 +500,7 @@ process (GeglOperation       *operation,
                           aux,
                           output, result,
                           o->technology, o->perceptual,
-                          o->scale, o->p_scale, o->m_scale, o->WhiteRepresentation, o->globalSaturation,
+                          o->scale, o->saturation_min, o->saturation_weighting_factor, o->WhiteRepresentation, o->globalSaturation,
                           level);
   return success;
 }
