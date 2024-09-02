@@ -1,0 +1,17 @@
+id=in #input buffer
+
+saturation scale=0.0
+id=y #grayscale
+
+ref=in
+multiply value=-1
+component-extract component=hsv-v
+multiply value=-1
+id=ymin #minimum rgb channel
+
+divide aux=[ ref=y]
+id=ymin_div_y #ymin/y
+
+color value=white
+subtract aux=[ ref=ymin_div_y]
+#saturation = 1-ymin/y
