@@ -371,7 +371,10 @@ color_mapper (GeglBuffer                *input,
 
           /* chromaticity equivalent in HSY Color Model of in-buffer - before chroma scaling */
           Chroma_HSY_aux = sqrtf (POW2(chroma_aux[0]) + POW2(chroma_aux[1]) + POW2(chroma_aux[2]) - (chroma_aux[0] * chroma_aux[1] + chroma_aux[0] * chroma_aux[2] + chroma_aux[1] * chroma_aux[2]));
-          Saturation_HSY_aux = (mid_ptr_Yaux[x] > FLT_MIN) ? (Chroma_HSY_aux / mid_ptr_Yaux[x]) : 0.0;
+
+          /* saturation analogue definition Eva Luebbe */
+          Saturation_HSY_aux = (mid_ptr_Yaux[x] > FLT_MIN) ? (Chroma_HSY_aux / sqrtf (POW2 (mid_ptr_Yaux[x]) + POW2 (Chroma_HSY_aux) )) : 0.0;
+          
           Saturation_HSY_aux_dz = fmax (Saturation_HSY_aux - saturation_min, 0.0);
           ChromaAdoptionFactor_sat_dz = (Saturation_HSY_aux > FLT_MIN) ? (Saturation_HSY_aux_dz / Saturation_HSY_aux) : 0.0;
 
